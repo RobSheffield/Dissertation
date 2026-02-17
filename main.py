@@ -10,6 +10,7 @@ from ui_tabs.dataset_config_tab import DatasetConfigTab
 from ui_tabs.documentation_viewer import DocumentationViewerTab
 from ui_tabs.train_ai_tab import TrainAiTab
 from ui_tabs.view_models_tab import ViewModelsTab
+from ui_tabs.testing_tab import TestingTab
 
 
 class MainWindow(QMainWindow):
@@ -23,12 +24,15 @@ class MainWindow(QMainWindow):
         self.train_ai_tab = TrainAiTab()
         self.training_data_tab = DatasetConfigTab()
         self.documentation_tab = DocumentationViewerTab()
+        self.testing_tab = TestingTab()
+
         self.tabs = QTabWidget()
         self.tabs.addTab(self.analyse_image_tab, "Analyse Image")
         self.tabs.addTab(self.view_models_tab, "View Models")
         self.tabs.addTab(self.train_ai_tab, "Train AI")
         self.tabs.addTab(self.training_data_tab, "Training Data")
         self.tabs.addTab(self.documentation_tab, "Documentation Viewer")
+        self.tabs.addTab(self.testing_tab, "Model Testing")
         self.tabs.currentChanged.connect(self.on_tab_changed)
         self.analyse_image_tab.new_image_signal.connect(self.load_new_image)
 
@@ -66,6 +70,14 @@ class MainWindow(QMainWindow):
                                          safe_image_file_name=file_name)
 
         self.tabs.setCurrentWidget(self.training_data_tab)
+
+    def closeEvent(self, event):
+        """Ensure threads are stopped before closing."""
+        print("Closing application, cleaning up threads...")
+        if hasattr(self.testing_tab, 'test_worker') and self.testing_tab.test_worker.isRunning():
+            self.testing_tab.test_worker.terminate()
+            self.testing_tab.test_worker.wait()
+        event.accept()
 
 
 # TODO: Need to fix functionality for closing window. Ensure all threads terminate correctly.

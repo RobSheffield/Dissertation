@@ -6,102 +6,210 @@ import numpy as np
 from ultralytics import YOLO
 from helpers import file_helpers
 from data_classes.model_info import ModelInfo
+from testing.metamorphic_relations import metamorphic_relations
 
 
 class TestModelStage(QThread):
     model_testing_text_signal = Signal(str)
     model_testing_progress_bar_signal = Signal(int)
 
-    def __init__(self, model_info: ModelInfo, path_to_images, path_to_labels, path_to_all_images, path_to_models):
-        """Tests the model and creates statistics for comparison."""
+    def __init__(self, model_info: ModelInfo, path_to_images, path_to_labels, 
+                 path_to_all_images, path_to_models, num_samples=10, strategy="Regular Selection",
+                 custom_mrs=None):
+        """Tests the model and creates statistics for comparison.
+        
+        Args:
+            custom_mrs: Optional list of tuples (name, function, [levels]) for specific MR testing.
+        """
         super().__init__()
         self.model_info = model_info
         self.path_to_images = path_to_images
         self.path_to_labels = path_to_labels
+        self.path_to_all_images = path_to_all_images
         self.path_to_models = path_to_models
+        self.num_samples = num_samples
+        self.strategy = strategy
+        self.custom_mrs = custom_mrs
+        self.dynamic_mr_data = {}
+        self.image_results = {}  # Changed from list to dict
 
-        self.path_to_train_images = os.path.join(path_to_images, "train")
-        self.path_to_val_images = os.path.join(path_to_images, "val")
+        # Detect YOLO vs Flat structure
+        train_path = os.path.join(path_to_images, "train")
+        # If 'train' folder doesn't exist, use the base path
+        self.path_to_train_images = train_path if os.path.isdir(train_path) else path_to_images
 
-        self.train_image_count = file_helpers.count_image_files_in_directory(self.path_to_train_images)
-        self.val_image_count = file_helpers.count_image_files_in_directory(self.path_to_val_images)
+        # Sample images using a helper
+        self.selected_test_images = self.get_random_samples(self.path_to_train_images, self.num_samples)
 
-        self.selected_training_images = self.select_random_images(self.path_to_train_images, 20)
-        self.selected_val_images = self.select_random_images(self.path_to_val_images, 20)
-        self.selected_all_images = self.select_random_images(path_to_all_images, 5)
-
-        self.selected_test_images = []
-        self.selected_test_images.extend(self.selected_training_images)
-        self.selected_test_images.extend(self.selected_val_images)
-        self.selected_test_images.extend(self.selected_all_images)
-
-        self.selected_test_annotation = []
-        for img in self.selected_test_images:
-            self.selected_test_annotation.append(file_helpers.get_annotation_for_image(img, self.path_to_labels))
+    def get_random_samples(self, directory, count):
+        if not os.path.exists(directory): return []
+        files = [os.path.join(directory, f) for f in os.listdir(directory) 
+                 if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        return random.sample(files, min(len(files), count)) if files else []
 
     def run(self):
         self.metamorphic_tests()
         self.differential_tests()
-        self.fuzzing_tests()
 
         self.model_info.save_to_json()
 
+
+
     def metamorphic_tests(self):
-        """ Tests a model's ability to handle different variations of input data with
-            the same metamorphic properties.
-            This function tests if the model identifies the same bounding boxes for images before
-            and after they are rotated. """
-        # Setup worker and thread
-        model = YOLO(self.model_info.get_best_pt_path())
-
-        # Init values
-        total_match = 0
-        total_number = 0
-        iteration_num = 1
-
-        # Iterate through all test images
-        for file in self.selected_test_images:
-            image = cv2.imread(file)
-            rotated_image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
-
-            # Compute bounding boxes for the original image
-            original_results = model(file)
-            original_boxes = []
-
-            for box in original_results[0].boxes:
-                x_center, y_center, w, h = box.xywhn[0].tolist()
-                original_boxes.append([0, x_center, y_center, w, h])
-
-            # Rotate the bounding boxes for comparison to the rotated image's bounding boxes
-            rotated_original_boxes = self.rotate_annotations_by_90(original_boxes)
-
-            # Compute bounding boxes for rotated images
-            rotated_results = model(rotated_image)
-            rotated_boxes = []
-
-            for box in rotated_results[0].boxes:
-                x_center, y_center, w, h = box.xywhn[0].tolist()
-                rotated_boxes.append([0, x_center, y_center, w, h])
-
-            # Compare bounding boxes
-            matched, total = self.compare_annotations(rotated_original_boxes, rotated_boxes, 0.3)
-            total_match += matched
-            total_number += total
-
-            self.model_testing_text_signal.emit(f"Metamorphic Test (Iteration "
-                                                f"{iteration_num}/{len(self.selected_test_images)}) - Matched "
-                                                f"{matched}/{total}.")
-            iteration_num += 1
-            self.model_testing_progress_bar_signal.emit(int(iteration_num / len(self.selected_test_images) * 33))
-
-        if total_number == 0:
-            final_result = "0% Matched. No bounding boxes were found in test data."
+        # Build weight path relative to project root
+        best_pt = os.path.join(self.path_to_models, self.model_info.folder_name, "weights", "best.pt")
+        
+        if not os.path.exists(best_pt):
+            self.model_testing_text_signal.emit(f"Model not found: {best_pt}")
+            return
+        
+        model = YOLO(best_pt)
+        
+        work_list = []
+        
+        if self.custom_mrs:
+            work_list = self.custom_mrs
         else:
-            final_result = f"{(total_match / total_number) * 100}% Matched out of {total_number} Total"
+            work_list = [
+                ("Rotate 90", metamorphic_relations.rotate_90_clockwise, [None]),
+                ("Vertical Mirror", metamorphic_relations.vertical_mirror, [None]),
+                ("Horizontal Mirror", metamorphic_relations.horizontal_mirror, [None]),
+                ("Colour Inversion", metamorphic_relations.color_inversion, [None]),
+                ("Gaussian Noise", metamorphic_relations.noise_addition_gaussian, list(range(1, 10, 1))),
+                ("Gamma Correction", metamorphic_relations.gamma_correction, [0.5,0.75,1,1.25,1.5, 1.75, 2.0]),
+                ("Noise Addition (Salt & Pepper)", metamorphic_relations.noise_addition_salt_and_pepper, [round(x * 0.05, 2) for x in range(1, 11)]),
+                ("Brightness", metamorphic_relations.brightness_adjustment, [-100,-50, 50, 100]),
+                ("Contrast", metamorphic_relations.contrast_adjustment, [0.5, 1.5, 2.0,2.5]),
+                ("Blur", metamorphic_relations.blur, [3, 7, 11, 15,100]),
+            ]
+        
+        if not work_list:
+            self.model_testing_text_signal.emit("No metamorphic relations to test.")
+            return
 
-        self.model_info.metamorphic_test_result = final_result
+        results_summary = []
+        image_analysis = []
+        for name, relation_func, params in work_list:
+            for param in params:
+                test_name = f"{name} ({param})" if param is not None else name
+                total_match = 0
+                total_number = 0
+                sample_index = 0
+                
+                for file in self.selected_test_images:
+                    image = cv2.imread(file)
+                    image_name = os.path.splitext(os.path.basename(file))[0]
+                    
+                    original_results = model(file, verbose=False)
+                    original_boxes = [[0, *box.xywhn[0].tolist()] for box in original_results[0].boxes]
 
-        self.model_testing_text_signal.emit(f"Metamorphic Test Finished, FINAL RESULT - {final_result} ")
+                    if not original_boxes:
+                        continue
+
+                    if param is not None:
+                        transformed_img, expected_boxes = relation_func(image, original_boxes, param)
+                    else:
+                        transformed_img, expected_boxes = relation_func(image, original_boxes)
+
+                    transformed_results = model(transformed_img, verbose=False)
+                    actual_boxes = [[0, *box.xywhn[0].tolist()] for box in transformed_results[0].boxes]
+
+                    matched, total = self.compare_annotations(expected_boxes, actual_boxes, 0.3)
+                    total_match += matched
+                    total_number += total
+
+                    result_key = f"{test_name} - {image_name}"
+                    self.image_results[result_key] = self.create_comparison_visualization(
+                        image, original_boxes, expected_boxes, transformed_img, actual_boxes
+                    )
+                    sample_index += 1
+
+                if total_number > 0:
+                    accuracy = (total_match / total_number * 100)
+                    results_summary.append(f"{test_name}: {accuracy:.2f}%")
+                    self.model_testing_text_signal.emit(f"Finished MR: {test_name} - {accuracy:.2f}%")
+                else:
+                    self.model_testing_text_signal.emit(f"Skipped MR: {test_name} - No detections found in original samples.")
+
+        self.model_info.metamorphic_test_result = " | ".join(results_summary)
+        self.model_testing_progress_bar_signal.emit(33)
+
+
+    def create_comparison_visualization(self, original_img, original_boxes, expected_boxes, transformed_img, actual_boxes):
+        """Create a 2x2 grid comparison image:
+        ┌──────────────────────┬──────────────────────────┐
+        │ Original + GT boxes  │ Original + Predicted     │
+        │ (Green)              │ boxes (Red)              │
+        ├──────────────────────┼──────────────────────────┤
+        │ Transformed +        │ Transformed + Predicted  │
+        │ Expected boxes (Green│ boxes (Red)              │
+        └──────────────────────┴──────────────────────────┘
+        Left column  = Ground truth / expected (what SHOULD be detected)
+        Right column = What the model ACTUALLY predicted
+        """
+        target_h, target_w = 400, 400
+        orig_resized = cv2.resize(original_img, (target_w, target_h))
+        trans_resized = cv2.resize(transformed_img, (target_w, target_h))
+
+        h, w = target_h, target_w
+
+        # Top-left: Original image with ground truth boxes (green)
+        panel_tl = orig_resized.copy()
+        for box in original_boxes:
+            self._draw_box(panel_tl, box, (0, 255, 0), h, w)
+
+        # Top-right: Original image with model's predicted boxes (red)
+        # Run prediction on original to show what model detects on unmodified image
+        panel_tr = orig_resized.copy()
+        for box in original_boxes:
+            self._draw_box(panel_tr, box, (0, 0, 255), h, w)
+
+        # Bottom-left: Transformed image with expected boxes (green)
+        panel_bl = trans_resized.copy()
+        for box in expected_boxes:
+            self._draw_box(panel_bl, box, (0, 255, 0), h, w)
+
+        # Bottom-right: Transformed image with predicted boxes (red)
+        panel_br = trans_resized.copy()
+        for box in actual_boxes:
+            self._draw_box(panel_br, box, (0, 0, 255), h, w)
+
+        # Add labels above each panel
+        label_h = 30
+        panels = [panel_tl, panel_tr, panel_bl, panel_br]
+        labels = [
+            "Original + GT (Green)",
+            "Original + Predicted (Red)",
+            "Transformed + Expected (Green)",
+            "Transformed + Predicted (Red)"
+        ]
+
+        labeled_panels = []
+        for panel, label in zip(panels, labels):
+            label_bar = np.zeros((label_h, target_w, 3), dtype=np.uint8)
+            cv2.putText(label_bar, label, (10, 22),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            labeled_panels.append(np.vstack([label_bar, panel]))
+
+        # Build 2x2 grid with dividers
+        divider_v = np.ones((labeled_panels[0].shape[0], 3, 3), dtype=np.uint8) * 128
+        divider_h = np.ones((3, target_w * 2 + 3, 3), dtype=np.uint8) * 128
+
+        top_row = np.hstack([labeled_panels[0], divider_v, labeled_panels[1]])
+        bottom_row = np.hstack([labeled_panels[2], divider_v, labeled_panels[3]])
+        grid = np.vstack([top_row, divider_h, bottom_row])
+
+        return grid
+    
+    def _draw_box(self, img, box, color, h, w):
+        """Helper method to draw a bounding box on an image."""
+        _, x_center, y_center, box_w, box_h = box
+        x_min = int((x_center - box_w/2) * w)
+        y_min = int((y_center - box_h/2) * h)
+        x_max = int((x_center + box_w/2) * w)
+        y_max = int((y_center + box_h/2) * h)
+        cv2.rectangle(img, (x_min, y_min), (x_max, y_max), color, 2)
+
 
     def differential_tests(self):
         """ Compares current model's recall compared to previous models. """
@@ -142,14 +250,14 @@ class TestModelStage(QThread):
             total_correct_bounding_boxes += len(correct_bounding_boxes)
 
             # Calculates new model's bounding boxes
-            current_model_results = current_model(current_image)
+            current_model_results = current_model(current_image, verbose=False)
             current_model_bounding_boxes = []
             for box in current_model_results[0].boxes:
                 x_center, y_center, w, h = box.xywhn[0].tolist()
                 current_model_bounding_boxes.append([0, x_center, y_center, w, h])
 
             # Calculates previous model's bounding boxes
-            previous_model_results = previous_model(current_image)
+            previous_model_results = previous_model(current_image, verbose=False)
             previous_model_bounding_boxes = []
             for box in previous_model_results[0].boxes:
                 x_center, y_center, w, h = box.xywhn[0].tolist()
@@ -186,70 +294,42 @@ class TestModelStage(QThread):
         self.model_testing_text_signal.emit(f"Differential Testing Finished, FINAL RESULT - {result_string}")
         self.model_testing_progress_bar_signal.emit(66)
 
-    def fuzzing_tests(self):
-        """ Generates random and unexpected inputs for the system. The primary goal is to identify issues
-            such as program crashes, memory corruption and other vulnerabilities. """
 
-        model = YOLO(self.model_info.get_best_pt_path())
-        num_passes = 0
-        num_fails = 0
-        total_num = len(self.selected_test_images)
 
-        for index in range(0, total_num):
-            try:
-                test_img_path = self.selected_test_images[index]
-                test_img = cv2.imread(test_img_path)
-
-                # Swap the colour channels
-                channels = list(cv2.split(test_img))
-                random.shuffle(channels)
-                test_img = cv2.merge(channels)
-
-                # Add gaussian noise
-                random_gaussian_noise = np.random.normal(0, 25, test_img.shape).astype(np.uint8)
-                test_img = cv2.add(test_img, random_gaussian_noise)
-
-                # Add occlusion
-                h, w = test_img.shape[:2]
-                x1 = random.randint(0, w // 2)
-                y1 = random.randint(0, h // 2)
-                x2 = x1 + random.randint(10, w // 2)
-                y2 = y1 + random.randint(10, h // 2)
-                cv2.rectangle(test_img, (x1, y1), (x2, y2), (0, 0, 0), -1)
-
-                # Test the corrupted image with the model.
-                model(test_img)
-
-                # If an exception was not thrown, it has passed.
-                num_passes += 1
-                self.model_testing_text_signal.emit(f"Fuzzing Testing - Test {index + 1}/{total_num} Passed.")
-            except Exception:
-                # Exception has been thrown so the test must have failed.
-                num_fails += 1
-                self.model_testing_text_signal.emit(f"Fuzzing Testing - Test {index}/{total_num} Failed.")
-
-            self.model_testing_progress_bar_signal.emit(int(int(index / total_num * 33) + 66))
-
-        percentage_passed = (num_passes / total_num) * 100
-        result_string = f"{percentage_passed}% Passed out of {total_num} Images."
-
-        self.model_testing_text_signal.emit(f"Fuzzing Testing Finished, FINAL RESULT - {result_string}")
-        self.model_testing_progress_bar_signal.emit(100)
-
-        self.model_info.fuzzing_test_result = result_string
-
-    def select_random_images(self, image_dir, percentage=5):
-        """ Selects a provided percentage of images from the provided DIR. """
+    def select_random_images_from_dir(self, image_dir, count=20):
+        """ Selects a provided number of images from the provided DIR. """
+        if not os.path.exists(image_dir):
+            return []
+            
         all_files = [
             os.path.join(image_dir, f)
             for f in os.listdir(image_dir)
-            if f != '.gitignore'
+            if f.lower().endswith(('.png', '.jpg', '.jpeg'))
         ]
 
-        total = len(all_files)
-        count = max(1, int(total * (percentage / 100)))  # at least 1 image
-        selected = random.sample(all_files, count)
-        return selected
+        if not all_files:
+            return []
+
+        # Ensure we don't try to sample more than exists
+        actual_count = min(len(all_files), count)
+        return random.sample(all_files, actual_count)
+
+    def select_random_images(self):
+        """ Selects images for testing. Defaults to the folder itself if no YOLO structure exists. """
+        # Check if the path contains a 'train' subfolder, otherwise use the path directly
+        potential_train_path = os.path.join(self.path_to_images, "train")
+        image_dir = potential_train_path if os.path.exists(potential_train_path) else self.path_to_images
+
+        try:
+            # Filter for common image extensions
+            all_images = [
+                os.path.join(image_dir, f) for f in os.listdir(image_dir)
+                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
+            ]
+        except Exception:
+            all_images = []
+
+        return random.sample(all_images, 20)
 
     def rotate_annotations_by_90(self, boxes):
         """ Rotates the annotations by 90 degrees clockwise """
@@ -282,20 +362,15 @@ class TestModelStage(QThread):
         y2_max = box2[2] + box2[4] / 2
 
         # Find the intersection points between the boxes
-        inter_x1 = max(x1_min, x2_min)  # Left edge
-        inter_y1 = max(y1_min, y2_min)  # Top edge
-        inter_x2 = min(x1_max, x2_max)  # Right edge
-        inter_y2 = min(y1_max, y2_max)  # Bottom edge
+        inter_x1 = max(x1_min, x2_min)
+        inter_y1 = max(y1_min, y2_min)
+        inter_x2 = min(x1_max, x2_max)  
+        inter_y2 = min(y1_max, y2_max) 
 
-        # Calculate the width and height of the overlap.
-        # If the length is negative, it is discarded.
         inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
 
-        # Compute the area of each box
         box1_area = (x1_max - x1_min) * (y1_max - y1_min)
         box2_area = (x2_max - x2_min) * (y2_max - y2_min)
-
-        # Compute IoU
         union = box1_area + box2_area - inter_area
 
         return inter_area / union if union else 0
@@ -311,3 +386,10 @@ class TestModelStage(QThread):
                     break
 
         return matched, len(boxes1)
+    
+    def select_metamorphic_relations_dynamically(self):
+        
+        pass
+
+    def run_grad_cam(self):
+        pass
