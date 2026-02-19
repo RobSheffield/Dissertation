@@ -44,6 +44,7 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
     model = YOLO(weights)
 
     # Train the model
+    print("data_yaml:", data_yaml+" | model_dir: "+model_dir+" | weights: "+weights+" | img_size: "+img_size+" | batch_size: "+batch_size+" | epochs: "+epochs)
     model.train(
         data=data_yaml,
         imgsz=int(img_size),
