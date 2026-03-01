@@ -45,22 +45,13 @@ def run_k_fold(image_path, output_path, k=5, seed=42):
                 if gt_files:
                     gt_file = os.path.join(gt_folder, gt_files[0])
 
-            # Copy images with folder prefix
-            for file in os.listdir(folder_path):
-                if not file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    continue
-                src = os.path.join(folder_path, file)
-                dst = os.path.join(img_dir, f"{folder}_{file}")
-                shutil.copy(src, dst)
-
-            # Convert gt to YOLO format labels into a temp dir, then rename with prefix
             if gt_file:
+                # Convert labels first
                 temp_lbl_dir = os.path.join(fold_dir, "labels_temp")
                 os.makedirs(temp_lbl_dir, exist_ok=True)
-
                 convert_gt_to_yolo(gt_file, folder_path, temp_lbl_dir, class_id=0)
 
-                # Rename converted labels to include folder prefix
+                # Track which stems have labels
                 converted_stems = set()
                 for lbl_file in os.listdir(temp_lbl_dir):
                     src_lbl = os.path.join(temp_lbl_dir, lbl_file)
@@ -70,17 +61,19 @@ def run_k_fold(image_path, output_path, k=5, seed=42):
 
                 shutil.rmtree(temp_lbl_dir)
 
-                # Remove any images that have no matching label
-                for img_file in os.listdir(img_dir):
-                    stem = os.path.splitext(img_file)[0]
-                    # Strip folder prefix to get original stem
-                    original_stem = stem[len(folder)+1:] if stem.startswith(f"{folder}_") else stem
-                    if original_stem not in converted_stems:
-                        os.remove(os.path.join(img_dir, img_file))
-                        print(f"  Removed label-less image: {img_file}")
-
+                # Only copy images that have a matching label
+                for file in os.listdir(folder_path):
+                    if not file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        continue
+                    stem = os.path.splitext(file)[0]
+                    if stem in converted_stems:
+                        src = os.path.join(folder_path, file)
+                        dst = os.path.join(img_dir, f"{folder}_{file}")
+                        shutil.copy(src, dst)
+                    else:
+                        print(f"  Skipped (no label): {file}")
             else:
-                print(f"WARNING: No gt file found for {folder}, skipping labels")
+                print(f"WARNING: No gt file found for {folder}, skipping entire folder.")
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
 
