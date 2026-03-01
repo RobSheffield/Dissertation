@@ -35,11 +35,36 @@ class TestModelStage(QThread):
 
         # Detect YOLO vs Flat structure
         train_path = os.path.join(path_to_images, "train")
+        test_path = os.path.join(path_to_images, "val")
         # If 'train' folder doesn't exist, use the base path
         self.path_to_train_images = train_path if os.path.isdir(train_path) else path_to_images
+        self.path_to_test_images = test_path if os.path.isdir(test_path) else path_to_images
 
         # Sample images using a helper
-        self.selected_test_images = self.get_random_samples(self.path_to_train_images, self.num_samples)
+        self.selected_test_images = self.get_random_samples(self.path_to_test_images, self.num_samples)
+
+        # Build matching annotation paths
+        train_label_path = os.path.join(path_to_labels, "train")
+        test_label_path = os.path.join(path_to_labels, "val")
+        label_dir = test_label_path if os.path.isdir(test_label_path) else path_to_labels
+
+        # Filter to only images that have a corresponding label file
+        self.selected_test_images = []
+        self.selected_test_annotation = []
+
+        all_candidates = self.get_random_samples(self.path_to_test_images, len(
+            [f for f in os.listdir(self.path_to_test_images) 
+             if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        ))
+
+        for img_path in all_candidates:
+            base_name = os.path.splitext(os.path.basename(img_path))[0]
+            label_path = os.path.join(label_dir, base_name + ".txt")
+            if os.path.exists(label_path):
+                self.selected_test_images.append(img_path)
+                self.selected_test_annotation.append(label_path)
+                if len(self.selected_test_images) >= self.num_samples:
+                    break
 
     def get_random_samples(self, directory, count):
         if not os.path.exists(directory): return []
@@ -77,7 +102,7 @@ class TestModelStage(QThread):
                 ("Colour Inversion", metamorphic_relations.color_inversion, [None]),
                 ("Gaussian Noise", metamorphic_relations.noise_addition_gaussian, list(range(1, 10, 1))),
                 ("Gamma Correction", metamorphic_relations.gamma_correction, [0.5,0.75,1,1.25,1.5, 1.75, 2.0]),
-                ("Noise Addition (Salt & Pepper)", metamorphic_relations.noise_addition_salt_and_pepper, [round(x * 0.05, 2) for x in range(1, 11)]),
+                ("Noise Addition (Salt & Pepper)", metamorphic_relations.noise_addition_salt_and_pepper, [round(x * 0.0005, 2) for x in range(1, 11)]),
                 ("Brightness", metamorphic_relations.brightness_adjustment, [-100,-50, 50, 100]),
                 ("Contrast", metamorphic_relations.contrast_adjustment, [0.5, 1.5, 2.0,2.5]),
                 ("Blur", metamorphic_relations.blur, [3, 7, 11, 15,100]),
@@ -104,6 +129,8 @@ class TestModelStage(QThread):
                     original_boxes = [[0, *box.xywhn[0].tolist()] for box in original_results[0].boxes]
 
                     if not original_boxes:
+                        result_key = f"{test_name} - {image_name}"
+                        self.image_results[result_key] = cv2.resize(image, (803, 400))  # show image anyway
                         continue
 
                     if param is not None:
@@ -130,6 +157,7 @@ class TestModelStage(QThread):
                     self.model_testing_text_signal.emit(f"Finished MR: {test_name} - {accuracy:.2f}%")
                 else:
                     self.model_testing_text_signal.emit(f"Skipped MR: {test_name} - No detections found in original samples.")
+        self.save_metamorphic_results(results_summary, self.selected_test_images, [name for name, _, _ in work_list])
 
         self.model_info.metamorphic_test_result = " | ".join(results_summary)
         self.model_testing_progress_bar_signal.emit(33)
@@ -240,6 +268,11 @@ class TestModelStage(QThread):
             current_image = self.selected_test_images[index]
             current_annotation = self.selected_test_annotation[index]
 
+            if current_annotation is None:
+                self.model_testing_text_signal.emit(
+                    f"Differential Testing - Skipping image {index + 1}/{length_of_selected_images} (no annotation)")
+                continue
+
             # Loads correct bounding boxes
             correct_bounding_boxes = []
             with open(current_annotation, "r") as f:
@@ -313,6 +346,17 @@ class TestModelStage(QThread):
         # Ensure we don't try to sample more than exists
         actual_count = min(len(all_files), count)
         return random.sample(all_files, actual_count)
+    
+
+    def save_metamorphic_results(self, results, image_files,image_relations):
+        with open(os.path.join(self.path_to_models, self.model_info.folder_name, "metamorphic_results.txt"), "w") as f:
+            relation_dict = {}
+            for i,relation in enumerate(image_relations):
+                relation_dict[image_files[i]] = relation
+            f.write(str(relation_dict))
+            f.write("\n")
+            f.write(str(results))
+        
 
     def select_random_images(self):
         """ Selects images for testing. Defaults to the folder itself if no YOLO structure exists. """

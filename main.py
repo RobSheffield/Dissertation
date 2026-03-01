@@ -11,13 +11,14 @@ from ui_tabs.documentation_viewer import DocumentationViewerTab
 from ui_tabs.train_ai_tab import TrainAiTab
 from ui_tabs.view_models_tab import ViewModelsTab
 from ui_tabs.testing_tab import TestingTab
+from ui_tabs.retraining_tab import RetrainingTab
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("X-Ray Image Analysis")
-        self.setGeometry(200, 200, 600, 400)
+        self.setGeometry(200, 200, 800, 400)
 
         self.analyse_image_tab = AnalyseImageTab()
         self.view_models_tab = ViewModelsTab()
@@ -25,6 +26,7 @@ class MainWindow(QMainWindow):
         self.training_data_tab = DatasetConfigTab()
         self.documentation_tab = DocumentationViewerTab()
         self.testing_tab = TestingTab()
+        self.retraining_tab = RetrainingTab()
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.analyse_image_tab, "Analyse Image")
@@ -33,6 +35,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.training_data_tab, "Training Data")
         self.tabs.addTab(self.documentation_tab, "Documentation Viewer")
         self.tabs.addTab(self.testing_tab, "Model Testing")
+        self.tabs.addTab(self.retraining_tab, "Retraining")
         self.tabs.currentChanged.connect(self.on_tab_changed)
         self.analyse_image_tab.new_image_signal.connect(self.load_new_image)
 

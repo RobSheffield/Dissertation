@@ -1,6 +1,5 @@
 import random
 import shutil
-from PySide6.QtWidgets import QFileDialog
 import os
 from data_classes.model_info import ModelInfo
 
@@ -12,6 +11,7 @@ They have been collected into a single file as they are used at multiple places 
 
 def browse_file(self, opendir, fileConstraints):
     """Allows the user to select a file with the provided constraints."""
+    from PySide6.QtWidgets import QFileDialog
     file_path, _ = QFileDialog.getOpenFileName(self, "Select a File", opendir, fileConstraints)
     if file_path:
         return file_path

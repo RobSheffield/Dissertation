@@ -13,7 +13,7 @@ from helpers import file_helpers
 
 
 def train_yolo(data_yaml, model_info, training_start, model_dir,
-               weights="yolov5m.pt", img_size="640", batch_size="16", epochs="50"):
+               weights="yolov5m.pt", img_size="640", batch_size="16", epochs="50", flips = False):
     """
     Train a YOLOv5 model with the specified parameters.
 
@@ -45,28 +45,35 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
 
     # Train the model
     print("data_yaml:", data_yaml+" | model_dir: "+model_dir+" | weights: "+weights+" | img_size: "+img_size+" | batch_size: "+batch_size+" | epochs: "+epochs)
-    model.train(
-        data=data_yaml,
-        imgsz=int(img_size),
-        batch=int(batch_size),
-        epochs=int(epochs),
-        cache=True,
-        device=device
-    )
 
-    os.makedirs(model_dir, exist_ok=True)
+    if not flips:
+        results = model.train(
+            data=data_yaml,
+            imgsz=int(img_size),
+            batch=int(batch_size),
+            epochs=int(epochs),
+            cache=True,
+            device=device)
+    else:
+        results = model.train(
+            data=data_yaml,
+            imgsz = int(img_size),
+            batch = int(batch_size),
+            epochs = int(epochs),
+            cache = True,
+            device = device,
+            fliplr = 0.5,
+            flipud=0.5)
+
+    save_dir = results.save_dir
 
     print(f"Saving model artifacts in: {model_dir}")
 
-    latest_run = sorted(os.listdir(runs_dir))[-1]  # Get the latest training run
-    best_model_path = os.path.join(runs_dir, latest_run)
-
     # Move contents to new location
-    for item in os.listdir(best_model_path):
-        shutil.move(os.path.join(best_model_path, item), model_dir)
-
-    # Remove old file
-    shutil.rmtree(best_model_path)
+    if os.path.exists(model_dir):
+        shutil.rmtree(model_dir)
+    shutil.copytree(save_dir,model_dir)
+    shutil.rmtree(save_dir)
     results_df = (pd.read_csv(os.path.join(model_dir, "results.csv"))).iloc[-1].to_dict()
 
     minutes_training = round(float(results_df["time"]) / 60, 3)
