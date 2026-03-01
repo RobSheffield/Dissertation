@@ -1,15 +1,12 @@
 import sys
 import os
+import random
+import shutil
+import yaml
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-import random
-import os
-import numpy as np
-import shutil
-from stages.train_model import train_yolo
-import datetime
-
+from data.format_converter import convert_gt_to_yolo
 
 def run_k_fold(image_path, output_path, k=5, seed=42):
     '''K-fold across dataset - detefects_by_folder defines whether folders seperate groups of images of the same defect. (required to avoid training images leaking into test set)'''
@@ -25,7 +22,6 @@ def run_k_fold(image_path, output_path, k=5, seed=42):
         fold_name = f"fold_{fold_idx + 1}"
         fold_dir = os.path.join(output_path, fold_name)
 
-        # Delete and recreate fold directory
         if os.path.exists(fold_dir):
             shutil.rmtree(fold_dir)
             print(f"Cleared existing {fold_name}")
@@ -48,28 +44,36 @@ def run_k_fold(image_path, output_path, k=5, seed=42):
                 if gt_files:
                     gt_file = os.path.join(gt_folder, gt_files[0])
 
+            # Copy images with folder prefix
             for file in os.listdir(folder_path):
                 if not file.lower().endswith(('.png', '.jpg', '.jpeg')):
                     continue
-
                 src = os.path.join(folder_path, file)
-                dst_img = os.path.join(img_dir, f"{folder}_{file}")
-                shutil.copy(src, dst_img)
+                dst = os.path.join(img_dir, f"{folder}_{file}")
+                shutil.copy(src, dst)
 
-                # Copy corresponding label
-                label_name = os.path.splitext(file)[0] + ".txt"
-                dst_lbl = os.path.join(lbl_dir, f"{folder}_{label_name}")
-                if gt_file:
-                    src_lbl = os.path.join(gt_folder, label_name)
-                    if os.path.exists(src_lbl):
-                        shutil.copy(src_lbl, dst_lbl)
-                    else:
-                        open(dst_lbl, 'w').close()  # empty label
-                else:
-                    open(dst_lbl, 'w').close()  # empty label
+            # Convert gt to YOLO format labels into a temp dir, then rename with prefix
+            if gt_file:
+                temp_lbl_dir = os.path.join(fold_dir, "labels_temp")
+                os.makedirs(temp_lbl_dir, exist_ok=True)
+
+                convert_gt_to_yolo(gt_file, folder_path, temp_lbl_dir, class_id=0)
+
+                # Rename converted labels to include folder prefix
+                for lbl_file in os.listdir(temp_lbl_dir):
+                    src_lbl = os.path.join(temp_lbl_dir, lbl_file)
+                    dst_lbl = os.path.join(lbl_dir, f"{folder}_{lbl_file}")
+                    shutil.move(src_lbl, dst_lbl)
+
+                shutil.rmtree(temp_lbl_dir)
+            else:
+                # No gt file - create empty labels for all images
+                for file in os.listdir(folder_path):
+                    if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        lbl_name = f"{folder}_{os.path.splitext(file)[0]}.txt"
+                        open(os.path.join(lbl_dir, lbl_name), 'w').close()
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
-
 
 def train_k_fold(folds_path="Folds"):
     all_folds = sorted([d for d in os.listdir(folds_path) if d.startswith("fold_")])
