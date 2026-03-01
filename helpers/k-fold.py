@@ -68,11 +68,7 @@ def run_k_fold(image_path, output_path, k=5, seed=42):
 
                 shutil.rmtree(temp_lbl_dir)
             else:
-                # No gt file - create empty labels for all images
-                for file in os.listdir(folder_path):
-                    if file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                        lbl_name = f"{folder}_{os.path.splitext(file)[0]}.txt"
-                        open(os.path.join(lbl_dir, lbl_name), 'w').close()
+                print(f"WARNING: No gt file found for {folder}, skipping labels")
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
 
