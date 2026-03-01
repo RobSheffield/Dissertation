@@ -1,10 +1,26 @@
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r hpc_requirements.txt
+#!/bin/bash
+#SBATCH --job-name=xray-train
+#SBATCH --output=training_%j.log
+#SBATCH --error=training_%j.err
+#SBATCH --time=04:00:00
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem=32G
+#SBATCH --cpus-per-task=4
+
+module load Python/3.11.3-GCCcore-12.3.0
+module load CUDA/12.4.0
+module load OpenBLAS/0.3.23-GCC-12.3.0
 
 
-#source /users/acb22re/CopiedDissertation/take2/X-Ray_Image_Analysis/.venv/bin/activate
+cd /users/acb22re/CopiedDissertation/take2/X-Ray_Image_Analysis
+#python -m venv .venv
+#source .venv/bin/activate
+#pip install --upgrade pip
+#pip install -r requirements.txt
+
+
+source /users/acb22re/CopiedDissertation/take2/X-Ray_Image_Analysis/.venv/bin/activate
 
 python -m helpers.train_terminal \
   --data_yaml "data/dataset_yaml/dataset.yaml" \
