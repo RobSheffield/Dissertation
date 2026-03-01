@@ -19,13 +19,17 @@ def run_k_fold(image_path, defects_by_folder = False, k=5):
         folds = [defect_folders[i::k] for i in range(k)]
         for i, fold_folders in enumerate(folds):
             fold_name = f"fold_{i + 1}"
+    
             fold_dir = os.path.join("Folds", fold_name)
+            if os.path.exists(fold_dir):
+                shutil.rmtree(fold_dir)
             os.makedirs(fold_dir, exist_ok=True)
 
             print(f"Building {fold_name} ({len(fold_folders)} defect folders)...")
 
             for folder in fold_folders:
                 folder_path = os.path.join(image_path, folder)
+
                 for file in os.listdir(folder_path):
                     if file.lower().endswith(('.png', '.jpg', '.jpeg')):
                         src = os.path.join(folder_path, file)
@@ -76,3 +80,4 @@ def train_k_fold(folds_path="Folds"):
 
 
 run_k_fold("Castings", defects_by_folder=True, k=8)
+train_k_fold("Folds")
