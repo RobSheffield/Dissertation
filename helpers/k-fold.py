@@ -11,35 +11,65 @@ from stages.train_model import train_yolo
 import datetime
 
 
-def run_k_fold(image_path, defects_by_folder = False, k=5):
+def run_k_fold(image_path, output_path, k=5, seed=42):
     '''K-fold across dataset - detefects_by_folder defines whether folders seperate groups of images of the same defect. (required to avoid training images leaking into test set)'''
-    if defects_by_folder:
-        defect_folders = [f for f in os.listdir(image_path) if os.path.isdir(os.path.join(image_path, f))]
-        random.shuffle(defect_folders)
-        folds = [defect_folders[i::k] for i in range(k)]
-        for i, fold_folders in enumerate(folds):
-            fold_name = f"fold_{i + 1}"
+    defect_folders = [f for f in os.listdir(image_path) 
+                      if os.path.isdir(os.path.join(image_path, f))]
     
-            fold_dir = os.path.join("Folds", fold_name)
-            if os.path.exists(fold_dir):
-                shutil.rmtree(fold_dir)
-            os.makedirs(fold_dir, exist_ok=True)
+    random.seed(seed)
+    random.shuffle(defect_folders)
 
-            print(f"Building {fold_name} ({len(fold_folders)} defect folders)...")
+    folds = [defect_folders[i::k] for i in range(k)]
 
-            for folder in fold_folders:
-                folder_path = os.path.join(image_path, folder)
+    for fold_idx, fold_folders in enumerate(folds):
+        fold_name = f"fold_{fold_idx + 1}"
+        fold_dir = os.path.join(output_path, fold_name)
 
-                for file in os.listdir(folder_path):
-                    if file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                        src = os.path.join(folder_path, file)
-                        dst = os.path.join(fold_dir, f"{folder}_{file}")
-                        shutil.copy(src, dst)
-                        
-                        annotation_file = os.path.splitext(src)[0] + '.txt'
-                        if os.path.exists(annotation_file):
-                            dst_annotation = os.path.splitext(dst)[0] + '.txt'
-                            shutil.copy(annotation_file, dst_annotation)
+        # Delete and recreate fold directory
+        if os.path.exists(fold_dir):
+            shutil.rmtree(fold_dir)
+            print(f"Cleared existing {fold_name}")
+
+        img_dir = os.path.join(fold_dir, "images")
+        lbl_dir = os.path.join(fold_dir, "labels")
+        os.makedirs(img_dir)
+        os.makedirs(lbl_dir)
+
+        print(f"Building {fold_name} ({len(fold_folders)} defect folders)...")
+
+        for folder in fold_folders:
+            folder_path = os.path.join(image_path, folder)
+            gt_folder = os.path.join(folder_path, "gt")
+
+            # Find gt file
+            gt_file = None
+            if os.path.isdir(gt_folder):
+                gt_files = [f for f in os.listdir(gt_folder) if f.endswith('.txt')]
+                if gt_files:
+                    gt_file = os.path.join(gt_folder, gt_files[0])
+
+            for file in os.listdir(folder_path):
+                if not file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    continue
+
+                src = os.path.join(folder_path, file)
+                dst_img = os.path.join(img_dir, f"{folder}_{file}")
+                shutil.copy(src, dst_img)
+
+                # Copy corresponding label
+                label_name = os.path.splitext(file)[0] + ".txt"
+                dst_lbl = os.path.join(lbl_dir, f"{folder}_{label_name}")
+                if gt_file:
+                    src_lbl = os.path.join(gt_folder, label_name)
+                    if os.path.exists(src_lbl):
+                        shutil.copy(src_lbl, dst_lbl)
+                    else:
+                        open(dst_lbl, 'w').close()  # empty label
+                else:
+                    open(dst_lbl, 'w').close()  # empty label
+
+        print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
+
 
 def train_k_fold(folds_path="Folds"):
     all_folds = sorted([d for d in os.listdir(folds_path) if d.startswith("fold_")])
@@ -79,5 +109,5 @@ def train_k_fold(folds_path="Folds"):
         )
 
 
-run_k_fold("Castings", defects_by_folder=True, k=8)
+run_k_fold("Castings", output_path="Folds", k=8)
 train_k_fold("Folds")
