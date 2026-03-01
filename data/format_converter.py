@@ -21,10 +21,11 @@ def convert_gt_to_yolo(gt_file, images_dir, output_dir, class_id=0):
 
     # Load ground truth data
     gt_data = np.loadtxt(gt_file)
+    if gt_data.ndim == 1:
+        gt_data = gt_data.reshape(1, -1)  # Handle single annotation row
 
     # Iterate over all images in the directory
     image_files = [f for f in os.listdir(images_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
-    processed_images = set()
 
     for image_file in image_files:
         image_id = int(image_file.split('_')[1].split('.')[0])  # Extract image ID from the file name
@@ -35,50 +36,33 @@ def convert_gt_to_yolo(gt_file, images_dir, output_dir, class_id=0):
             img_width, img_height = img.size
 
         # Find ground truth annotations for the current image
-        if image_id in gt_data[:, 0]:
-            image_annotations = gt_data[gt_data[:, 0] == image_id][:, 1:]
-            yolo_lines = []
+        matches = gt_data[gt_data[:, 0] == image_id]
 
-            # Convert ground truth annotations to YOLO format
-            for bbox in image_annotations:
-                x_min, x_max, y_min, y_max = bbox
-                x_center = (x_min + x_max) / 2 / img_width
-                y_center = (y_min + y_max) / 2 / img_height
-                norm_width = (x_max - x_min) / img_width
-                norm_height = (y_max - y_min) / img_height
+        if len(matches) == 0:
+            # No annotation - skip entirely, do NOT create empty label
+            print(f"No ground truth for {image_file}, skipping.")
+            continue
 
-                yolo_lines.append(f"{class_id} {x_center} {y_center} {norm_width} {norm_height}")
+        yolo_lines = []
+        for bbox in matches[:, 1:]:
+            x_min, x_max, y_min, y_max = bbox
+            x_center = (x_min + x_max) / 2 / img_width
+            y_center = (y_min + y_max) / 2 / img_height
+            norm_width = (x_max - x_min) / img_width
+            norm_height = (y_max - y_min) / img_height
+            yolo_lines.append(f"{class_id} {x_center:.6f} {y_center:.6f} {norm_width:.6f} {norm_height:.6f}")
 
-            # Save YOLO annotations
-            yolo_file_name = os.path.splitext(image_file)[0] + '.txt'
-            yolo_file_path = os.path.join(output_dir, yolo_file_name)
-            with open(yolo_file_path, 'w') as yolo_file:
-                yolo_file.write('\n'.join(yolo_lines))
-            print(f"Saved YOLO annotations for {image_file}.")
+        if yolo_lines:
+            label_file = os.path.join(output_dir, os.path.splitext(image_file)[0] + ".txt")
+            with open(label_file, 'w') as f:
+                f.write('\n'.join(yolo_lines))
+            print(f"Saved {len(yolo_lines)} annotations for {image_file}.")
         else:
-            # Create an empty label file for defect-free images
-            yolo_file_name = os.path.splitext(image_file)[0] + '.txt'
-            yolo_file_path = os.path.join(output_dir, yolo_file_name)
-            open(yolo_file_path, 'w').close()  # Create an empty file
-            print(f"No bounding boxes found for {image_file}. Created an empty label file.")
-
-        # Track processed images
-        processed_images.add(image_id)
-
-    # Check for unprocessed images (those without ground truth entries)
-    unprocessed_images = [f for f in image_files if int(f.split('_')[1].split('.')[0]) not in processed_images]
-    for image_file in unprocessed_images:
-        # Create an empty label file for these images as well
-        yolo_file_name = os.path.splitext(image_file)[0] + '.txt'
-        yolo_file_path = os.path.join(output_dir, yolo_file_name)
-        open(yolo_file_path, 'w').close()  # Create an empty file
-        print(f"No ground truth entry found for {image_file}. Created an empty label file.")
+            print(f"WARNING: Empty annotations for {image_file}, skipping.")
 
 
 if __name__ == "__main__":
     ground_truth_file = "FULL_PATH_TO_GROUND_TRUTH_TXT_FOLDER/ground_truth.txt"
     images_directory = "FULL_PATH_TO_IMAGES_DIR"
     output_directory = "FULL_PATH_TO_OUTPUT_DIR"
-
-    # Assuming all defects belong to class ID 0 for YOLO
     convert_gt_to_yolo(ground_truth_file, images_directory, output_directory, class_id=0)
