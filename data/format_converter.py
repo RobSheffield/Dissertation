@@ -4,6 +4,7 @@
 import os
 import numpy as np
 from PIL import Image
+import re
 
 
 def convert_gt_to_yolo(gt_file, images_dir, output_dir, class_id=0):
@@ -28,7 +29,13 @@ def convert_gt_to_yolo(gt_file, images_dir, output_dir, class_id=0):
     image_files = [f for f in os.listdir(images_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
 
     for image_file in image_files:
-        image_id = int(image_file.split('_')[1].split('.')[0])  # Extract image ID from the file name
+        # Extract image ID - find first numeric segment in filename
+        name_no_ext = os.path.splitext(image_file)[0]
+        numbers = re.findall(r'\d+', name_no_ext)
+        if not numbers:
+            print(f"Could not extract ID from {image_file}, skipping.")
+            continue
+        image_id = int(numbers[-1])  # use last number in filename
         image_path = os.path.join(images_dir, image_file)
 
         # Get image dimensions
