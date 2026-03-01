@@ -61,12 +61,24 @@ def run_k_fold(image_path, output_path, k=5, seed=42):
                 convert_gt_to_yolo(gt_file, folder_path, temp_lbl_dir, class_id=0)
 
                 # Rename converted labels to include folder prefix
+                converted_stems = set()
                 for lbl_file in os.listdir(temp_lbl_dir):
                     src_lbl = os.path.join(temp_lbl_dir, lbl_file)
                     dst_lbl = os.path.join(lbl_dir, f"{folder}_{lbl_file}")
                     shutil.move(src_lbl, dst_lbl)
+                    converted_stems.add(os.path.splitext(lbl_file)[0])
 
                 shutil.rmtree(temp_lbl_dir)
+
+                # Remove any images that have no matching label
+                for img_file in os.listdir(img_dir):
+                    stem = os.path.splitext(img_file)[0]
+                    # Strip folder prefix to get original stem
+                    original_stem = stem[len(folder)+1:] if stem.startswith(f"{folder}_") else stem
+                    if original_stem not in converted_stems:
+                        os.remove(os.path.join(img_dir, img_file))
+                        print(f"  Removed label-less image: {img_file}")
+
             else:
                 print(f"WARNING: No gt file found for {folder}, skipping labels")
 
