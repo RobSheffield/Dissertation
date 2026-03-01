@@ -13,14 +13,14 @@ module load CUDA/12.4.0
 module load OpenBLAS/0.3.23-GCC-12.3.0
 
 
-cd /users/acb22re/CopiedDissertation/take2/X-Ray_Image_Analysis
-#python -m venv .venv
-#source .venv/bin/activate
-#pip install --upgrade pip
-#pip install -r requirements.txt
+cd /users/acb22re/Dissertation
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r hpc_requirements.txt
 
 
-source /users/acb22re/CopiedDissertation/take2/X-Ray_Image_Analysis/.venv/bin/activate
+#source /users/acb22re/CopiedDissertation/take2/X-Ray_Image_Analysis/.venv/bin/activate
 
 python -m helpers.train_terminal \
   --data_yaml "data/dataset_yaml/dataset.yaml" \
