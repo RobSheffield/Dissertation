@@ -76,30 +76,44 @@ def run_k_fold(image_path, output_path, k=5, seed=42):
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
 
 def train_k_fold(folds_path="Folds"):
-    all_folds = sorted([d for d in os.listdir(folds_path) if d.startswith("fold_")])
+    all_folds = sorted([
+        d for d in os.listdir(folds_path) 
+        if d.startswith("fold_") 
+        and os.path.isdir(os.path.join(folds_path, d))  # Must be a directory
+        and not d.endswith(".cache")                      # Ignore cache files
+    ])
+
+    print(f"Found {len(all_folds)} folds: {all_folds}")
 
     for fold in all_folds:
         fold_path = os.path.join(folds_path, fold)
         
-        # All other folds are training data
-        train_dirs = [os.path.join(folds_path, d) for d in all_folds if d != fold]
-        val_dir = os.path.abspath(fold_path)
+        train_dirs = [
+            os.path.join(os.path.abspath(folds_path), d, "images") 
+            for d in all_folds if d != fold
+        ]
+        val_dir = os.path.join(os.path.abspath(fold_path), "images")
+
+        # Verify paths exist before writing yaml
+        for t in train_dirs:
+            if not os.path.exists(t):
+                print(f"WARNING: train path does not exist: {t}")
 
         yaml_content = {
             'path': os.path.abspath(folds_path),
-            'train': [os.path.join(os.path.abspath(d), "images") for d in train_dirs],
-            'val': os.path.join(os.path.abspath(fold_path), "images"),
+            'train': train_dirs,
+            'val': val_dir,
             'nc': 1,
             'names': ['defect']
         }
 
         yaml_path = os.path.join(fold_path, "data.yaml")
         with open(yaml_path, 'w') as f:
-            f.write(f"path: {yaml_content['path']}\n")
-            f.write(f"train: {yaml_content['train']}\n")
-            f.write(f"val: {yaml_content['val']}\n")
-            f.write(f"nc: {yaml_content['nc']}\n")
-            f.write(f"names: {yaml_content['names']}\n")
+            yaml.dump(yaml_content, f, default_flow_style=False, sort_keys=False)
+
+        print(f"Training fold {fold} ({all_folds.index(fold)+1}/{len(all_folds)})...")
+        print(f"  val:   {val_dir}")
+        print(f"  train: {train_dirs}")
 
         train_yolo(
             data_yaml=yaml_path,
@@ -111,7 +125,9 @@ def train_k_fold(folds_path="Folds"):
             batch_size="16",
             epochs="50"
         )
+        print(f"Finished fold {fold}")
 
+    print("All folds complete!")
 
 run_k_fold("Castings", output_path="Folds", k=8)
 train_k_fold("Folds")
