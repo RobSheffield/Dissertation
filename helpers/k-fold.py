@@ -1,12 +1,11 @@
 import sys
 import os
-import random
-import shutil
-import datetime
-from stages.train_model import train_yolo
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+# Add the parent directory (Dissertation) to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data.format_converter import convert_gt_to_yolo
+from stages.train_model import train_yolo
 
 def run_k_fold(image_path, output_path, k=5, seed=42):
     '''K-fold across dataset - detefects_by_folder defines whether folders seperate groups of images of the same defect. (required to avoid training images leaking into test set)'''
