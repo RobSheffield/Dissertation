@@ -83,8 +83,8 @@ def train_k_fold(folds_path="Folds"):
 
         yaml_content = {
             'path': os.path.abspath(folds_path),
-            'train': [os.path.abspath(d) for d in train_dirs],  # list of paths
-            'val': val_dir,
+            'train': [os.path.join(os.path.abspath(d), "images") for d in train_dirs],
+            'val': os.path.join(os.path.abspath(fold_path), "images"),
             'nc': 1,
             'names': ['defect']
         }
