@@ -1,0 +1,12 @@
+numpy==1.26.4
+scipy==1.11.4
+opencv_python==4.10.0.84
+pandas==2.2.3
+Pillow==11.2.1
+PyYAML==6.0.2
+torch>=2.5.1
+ultralytics==8.3.58
+flake8==7.1.2
+pytest-qt==4.4.0
+pytest-timeout==2.3.1
+markdown==3.7
