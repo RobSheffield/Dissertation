@@ -3,6 +3,7 @@ import os
 import random
 import shutil
 import datetime
+import yaml
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from stages.train_model import train_yolo
 
