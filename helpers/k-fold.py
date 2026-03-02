@@ -88,7 +88,7 @@ def run_k_fold_temp(image_path, output_path, k=5):
 
     model_info_json = '{"name":"k_fold","model":"YOLOv5","number_of_images":"","date_time_trained":"","total_training_time":"","path":"","epoch":"","box_loss":"","cls_loss":"","mAP_50":"","mAP_50_95":"","precision":"","recall":"","dataset_config":"K-Fold","starting_model":"","folder_name":"","metamorphic_test_result":"","differential_test_result":"","fuzzing_test_result":""}'
 
-    for fold in all_folds:
+    for fold in all_folds[:1]:  # TEMP - just run first fold for testing
         fold_path = os.path.join(output_path, fold)
 
         # Create merged train dir just for this fold
@@ -136,7 +136,7 @@ def run_k_fold_temp(image_path, output_path, k=5):
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="50"
+            epochs="250"
         )
 
         # Delete merged dir immediately after training to save file quota
@@ -147,4 +147,4 @@ def run_k_fold_temp(image_path, output_path, k=5):
     print("All folds complete!")
 
 if __name__ == '__main__':
-    run_k_fold_temp("Castings", output_path="Folds_full_temp_paths_2", k=8)
+    run_k_fold_temp("Castings", output_path="fold_paths_one", k=10)
