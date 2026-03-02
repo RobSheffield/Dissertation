@@ -57,7 +57,6 @@ def run_k_fold(image_path, output_path, k=5):
 
                 shutil.rmtree(temp_lbl_dir)
 
-                # Only copy images that have a matching label
                 for file in os.listdir(folder_path):
                     if not file.lower().endswith(('.png', '.jpg', '.jpeg')):
                         continue
@@ -69,7 +68,20 @@ def run_k_fold(image_path, output_path, k=5):
                     else:
                         print(f"  Skipped (no label): {file}")
             else:
-                print(f"WARNING: No gt file found for {folder}, skipping entire folder.")
+                # No gt file - treat all images as negative cases with empty labels
+                images_in_folder = [f for f in os.listdir(folder_path)
+                                    if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                if images_in_folder:
+                    print(f"  No gt file for {folder} - treating {len(images_in_folder)} images as negative cases")
+                    for file in images_in_folder:
+                        src = os.path.join(folder_path, file)
+                        dst = os.path.join(img_dir, f"{folder}_{file}")
+                        shutil.copy(src, dst)
+                        # Empty label = no defects
+                        lbl_dst = os.path.join(lbl_dir, f"{folder}_{os.path.splitext(file)[0]}.txt")
+                        open(lbl_dst, 'w').close()
+                else:
+                    print(f"WARNING: {folder} has no gt file and no images, skipping.")
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
 
@@ -147,4 +159,4 @@ def run_k_fold_temp(image_path, output_path, k=5):
     print("All folds complete!")
 
 if __name__ == '__main__':
-    run_k_fold_temp("Castings", output_path="Folds_768", k=8)
+    run_k_fold_temp("Castings", output_path="Folds_full_temp_paths_2", k=8)
