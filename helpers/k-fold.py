@@ -9,12 +9,11 @@ from stages.train_model import train_yolo
 
 from data.format_converter import convert_gt_to_yolo
 
-def run_k_fold(image_path, output_path, k=5, seed=42):
+def run_k_fold(image_path, output_path, k=5):
     '''K-fold across dataset - detefects_by_folder defines whether folders seperate groups of images of the same defect. (required to avoid training images leaking into test set)'''
     defect_folders = [f for f in os.listdir(image_path) 
                       if os.path.isdir(os.path.join(image_path, f))]
     
-    random.seed(seed)
     random.shuffle(defect_folders)
 
     folds = [defect_folders[i::k] for i in range(k)]
@@ -36,14 +35,12 @@ def run_k_fold(image_path, output_path, k=5, seed=42):
 
         for folder in fold_folders:
             folder_path = os.path.join(image_path, folder)
-            gt_folder = os.path.join(folder_path, "gt")
-
-            # Find gt file
+            # Find gt file directly in folder (e.g. ground_truth.txt)
             gt_file = None
-            if os.path.isdir(gt_folder):
-                gt_files = [f for f in os.listdir(gt_folder) if f.endswith('.txt')]
-                if gt_files:
-                    gt_file = os.path.join(gt_folder, gt_files[0])
+            direct_gt = os.path.join(folder_path, "ground_truth.txt")
+            if os.path.isfile(direct_gt):
+                gt_file = direct_gt
+
 
             if gt_file:
                 # Convert labels first
@@ -81,8 +78,8 @@ def train_k_fold(folds_path="Folds"):
     all_folds = sorted([
         d for d in os.listdir(folds_path) 
         if d.startswith("fold_") 
-        and os.path.isdir(os.path.join(folds_path, d))  # Must be a directory
-        and not d.endswith(".cache")                      # Ignore cache files
+        and os.path.isdir(os.path.join(folds_path, d)) 
+        and not d.endswith(".cache")                    
     ])
 
     print(f"Found {len(all_folds)} folds: {all_folds}")
@@ -95,11 +92,6 @@ def train_k_fold(folds_path="Folds"):
             for d in all_folds if d != fold
         ]
         val_dir = os.path.join(os.path.abspath(fold_path), "images")
-
-        # Verify paths exist before writing yaml
-        for t in train_dirs:
-            if not os.path.exists(t):
-                print(f"WARNING: train path does not exist: {t}")
 
         yaml_content = {
             'path': os.path.abspath(folds_path),
@@ -131,5 +123,6 @@ def train_k_fold(folds_path="Folds"):
 
     print("All folds complete!")
 
-run_k_fold("Castings", output_path="Folds", k=8)
-train_k_fold("Folds")
+if __name__ == '__main__':
+    run_k_fold("Castings", output_path="Folds", k=8)
+    train_k_fold("Folds")
