@@ -117,7 +117,7 @@ def train_k_fold(folds_path="Folds"):
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
             model_dir=os.path.join("models", fold),
             weights="yolov5m.pt",
-            img_size="640",
+            img_size="768",
             batch_size="16",
             epochs="50"
         )
@@ -126,5 +126,5 @@ def train_k_fold(folds_path="Folds"):
     print("All folds complete!")
 
 if __name__ == '__main__':
-    run_k_fold("Castings", output_path="Folds", k=8)
+    run_k_fold("Castings", output_path="Folds_768", k=8)
     train_k_fold("Folds")
