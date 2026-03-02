@@ -84,6 +84,8 @@ def train_k_fold(folds_path="Folds"):
 
     print(f"Found {len(all_folds)} folds: {all_folds}")
 
+    model_info_json = '{"name":"k_fold","model":"YOLOv5","number_of_images":"","date_time_trained":"","total_training_time":"","path":"","epoch":"","box_loss":"","cls_loss":"","mAP_50":"","mAP_50_95":"","precision":"","recall":"","dataset_config":"K-Fold","starting_model":"","folder_name":"","metamorphic_test_result":"","differential_test_result":"","fuzzing_test_result":""}'
+
     for fold in all_folds:
         fold_path = os.path.join(folds_path, fold)
         
@@ -111,7 +113,7 @@ def train_k_fold(folds_path="Folds"):
 
         train_yolo(
             data_yaml=yaml_path,
-            model_info="model_info.json",
+            model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
             model_dir=os.path.join("models", fold),
             weights="yolov5m.pt",
