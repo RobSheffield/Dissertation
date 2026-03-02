@@ -68,20 +68,8 @@ def run_k_fold(image_path, output_path, k=5):
                     else:
                         print(f"  Skipped (no label): {file}")
             else:
-                # No gt file - treat all images as negative cases with empty labels
-                images_in_folder = [f for f in os.listdir(folder_path)
-                                    if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-                if images_in_folder:
-                    print(f"  No gt file for {folder} - treating {len(images_in_folder)} images as negative cases")
-                    for file in images_in_folder:
-                        src = os.path.join(folder_path, file)
-                        dst = os.path.join(img_dir, f"{folder}_{file}")
-                        shutil.copy(src, dst)
-                        # Empty label = no defects
-                        lbl_dst = os.path.join(lbl_dir, f"{folder}_{os.path.splitext(file)[0]}.txt")
-                        open(lbl_dst, 'w').close()
-                else:
-                    print(f"WARNING: {folder} has no gt file and no images, skipping.")
+                # No gt file - skip entirely, we cannot assume these are negative cases
+                print(f"WARNING: No gt file found for {folder}, skipping entire folder.")
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
 
