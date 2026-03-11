@@ -350,10 +350,10 @@ class TestingTab(QWidget):
         model_json = os.path.join(model_dir, "info.json")
         model_info = ModelInfo.fromPath(model_json) if os.path.exists(model_json) else \
                      ModelInfo(model_name, "YOLOv5", "N/A", "N/A", "N/A", path=model_dir, folder_name=model_name)
-
+        #TODO temporary fix
         if self.data_combo.currentIndex() <= 0:
-            img_p = os.path.join("stored_training_images", "images", "raw")
-            lab_p = os.path.join("stored_training_images", "labels", "raw")
+            img_p = os.path.join("data", "images", "val")
+            lab_p = os.path.join("data", "images", "val")
         else:
             dataset_name = self.data_combo.currentText()
             img_p = os.path.join("stored_training_images", "images", "raw")
