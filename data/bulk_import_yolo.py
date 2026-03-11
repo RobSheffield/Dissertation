@@ -3,7 +3,7 @@ import os
 from format_converter import convert_gt_to_yolo
 
 # Use absolute paths
-base_path = r"c:\Users\Rob\Documents\Dissertation\take2\X-Ray_Image_Analysis"
+base_path = r"/users/acb22re/Dissertation"
 
 # Destination paths
 dest_images = f"{base_path}/stored_training_images/images/raw/"
