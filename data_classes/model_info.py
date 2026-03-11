@@ -27,6 +27,7 @@ class ModelInfo:
         self.metamorphic_test_result = metamorphic_test_result
         self.differential_test_result = differential_test_result
         self.fuzzing_test_result = fuzzing_test_result
+        
 
     @classmethod
     def fromPath(cls, file_path):
@@ -66,7 +67,7 @@ class ModelInfo:
             "folder_name": self.folder_name,
             "metamorphic_test_result": self.metamorphic_test_result,
             "differential_test_result": self.differential_test_result,
-            "fuzzing_test_result": self.fuzzing_test_result
+            "fuzzing_test_result": self.fuzzing_test_result,
         }
 
     def to_json(self):

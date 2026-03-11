@@ -51,7 +51,7 @@ class metamorphic_relations:
         transformed_image = cv2.LUT(image, table)
         return transformed_image, boxes
 
-    def noise_addition_salt_and_pepper(image, boxes, amount=0.05):
+    def noise_addition_salt_and_pepper(image, boxes, amount=0.005):
         transformed_image = image.copy()
         num_pixels = image.shape[0] * image.shape[1]
         

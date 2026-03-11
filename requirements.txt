@@ -10,3 +10,8 @@ flake8==7.1.2
 pytest-qt==4.4.0
 pytest-timeout==2.3.1
 markdown==3.7
+
+module load Python/3.11.3-GCCcore-12.3.0
+module load CUDA/12.4.0
+module load OpenBLAS/0.3.23-GCC-12.3.0
+source .venv/bin/activate

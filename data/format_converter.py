@@ -46,8 +46,10 @@ def convert_gt_to_yolo(gt_file, images_dir, output_dir, class_id=0):
         matches = gt_data[gt_data[:, 0] == image_id]
 
         if len(matches) == 0:
-            # No annotation - skip entirely, do NOT create empty label
-            print(f"No ground truth for {image_file}, skipping.")
+            # No annotation - create empty label file (negative/background case)
+            label_file = os.path.join(output_dir, os.path.splitext(image_file)[0] + ".txt")
+            open(label_file, 'w').close()  # empty file = no defects
+            print(f"Created empty label (negative case) for {image_file}.")
             continue
 
         yolo_lines = []

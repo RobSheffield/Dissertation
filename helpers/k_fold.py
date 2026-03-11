@@ -4,6 +4,7 @@ import random
 import shutil
 import datetime
 import yaml
+import json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from stages.train_model import train_yolo
 from data.format_converter import convert_gt_to_yolo
@@ -72,6 +73,8 @@ def make_k_folds(image_path, output_path, k=5):
                 print(f"WARNING: No gt file found for {folder}, skipping entire folder.")
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
+        fold_info = folds
+        return fold_info
 
 
 def run_k_fold_temp(image_path, output_path, k=5):
@@ -79,14 +82,12 @@ def run_k_fold_temp(image_path, output_path, k=5):
     directory, trains, then deletes it before moving to the next fold - to save file quota'''
     
     # First build the base folds
-    make_k_folds(image_path, output_path, k)
+    fold_info = make_k_folds(image_path, output_path, k)
 
     all_folds = sorted([
         d for d in os.listdir(output_path)
         if d.startswith("fold_") and os.path.isdir(os.path.join(output_path, d))
     ])
-
-    model_info_json = '{"name":"k_fold","model":"YOLOv5","number_of_images":"","date_time_trained":"","total_training_time":"","path":"","epoch":"","box_loss":"","cls_loss":"","mAP_50":"","mAP_50_95":"","precision":"","recall":"","dataset_config":"K-Fold","starting_model":"","folder_name":"","metamorphic_test_result":"","differential_test_result":"","fuzzing_test_result":""}'
 
     for fold in all_folds:
         fold_path = os.path.join(output_path, fold)
@@ -111,8 +112,32 @@ def run_k_fold_temp(image_path, output_path, k=5):
             for file in os.listdir(src_lbl_dir):
                 shutil.copy(os.path.join(src_lbl_dir, file), os.path.join(temp_lbl_dir, file))
 
-        print(f"{fold} merged train: {len(os.listdir(temp_img_dir))} images, {len(os.listdir(temp_lbl_dir))} labels")
+        num_training_images = len(os.listdir(temp_img_dir))
+        print(f"{fold} merged train: {num_training_images} images, {len(os.listdir(temp_lbl_dir))} labels")
 
+
+        model_info_dict = {
+            "name": "k_fold",
+            "model": "YOLOv5",
+            "number_of_images": str(num_training_images),
+            "date_time_trained": "",
+            "total_training_time": "",
+            "path": "",
+            "epoch": "",
+            "box_loss": "",
+            "cls_loss": "",
+            "mAP_50": "",
+            "mAP_50_95": "",
+            "precision": "",
+            "recall": "",
+            "dataset_config": "K-Fold",
+            "starting_model": "",
+            "folder_name": "",
+            "metamorphic_test_result": "",
+            "differential_test_result": "",
+            "fuzzing_test_result": "",
+        }
+        model_info_json = json.dumps(model_info_dict)
 
         abs_train = os.path.abspath(temp_img_dir)
         abs_val   = os.path.abspath(os.path.join(fold_path, "images"))
@@ -130,12 +155,12 @@ def run_k_fold_temp(image_path, output_path, k=5):
             yaml.dump(yaml_content, f, default_flow_style=False, sort_keys=False)
 
         print(f"Training fold {fold} ({all_folds.index(fold)+1}/{len(all_folds)})...")
-
+        model_dir = os.path.join(fold_path, "models")
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=os.path.join("models_250_once", fold),
+            model_dir=model_dir,
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
@@ -144,10 +169,10 @@ def run_k_fold_temp(image_path, output_path, k=5):
 
         # Delete merged dir immediately after training to save file quota
         shutil.rmtree(temp_dir)
-        print(f"Cleaned up temp dir for {fold}")
-        print(f"Finished fold {fold}")
 
-    print("All folds complete!")
+        #store what castings were used for this fold (important)
+        with open(os.path.join(model_dir, "castings_used.txt"), 'w') as f:
+            f.write(f"Fold info: {fold_info}\n")
 
 if __name__ == '__main__':
     run_k_fold_temp("Castings", output_path="fold_paths_one", k=10)
