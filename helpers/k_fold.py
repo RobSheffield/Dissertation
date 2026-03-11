@@ -104,7 +104,7 @@ def run_k_fold_temp(image_path, output_path, k=5):
 
     all_folds = [f"fold_{i + 1}" for i in range(len(fold_info))]
 
-    for fold in all_folds:
+    for fold in all_folds[:1]:  # TEMP - just do first fold for testing
         fold_path = os.path.join(output_path, fold)
 
         # Create merged train dir just for this fold
@@ -179,7 +179,7 @@ def run_k_fold_temp(image_path, output_path, k=5):
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="50"
+            epochs="120"
         )
 
         # Delete merged dir immediately after training to save file quota
