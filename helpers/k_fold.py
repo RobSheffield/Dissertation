@@ -113,12 +113,11 @@ def run_k_fold_temp(image_path, output_path, k=5):
 
         print(f"{fold} merged train: {len(os.listdir(temp_img_dir))} images, {len(os.listdir(temp_lbl_dir))} labels")
 
-        # Write yaml pointing to merged train and this fold's val.
-        # Use absolute paths so YOLO can locate data regardless of working directory.
+
         abs_train = os.path.abspath(temp_img_dir)
         abs_val   = os.path.abspath(os.path.join(fold_path, "images"))
         yaml_content = {
-            'path': '.',          # not used when train/val are absolute
+            'path': '.',        
             'train': abs_train,
             'val': abs_val,
             'nc': 1,
@@ -140,7 +139,7 @@ def run_k_fold_temp(image_path, output_path, k=5):
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="250"
+            epochs="50"
         )
 
         # Delete merged dir immediately after training to save file quota
