@@ -14,17 +14,18 @@ def make_k_folds(image_path, output_path, k=5):
     # Get ALL directories first
     all_folders = [f for f in os.listdir(image_path) 
                    if os.path.isdir(os.path.join(image_path, f))]
-    
-    defect_folders = [f for f in all_folders
-                      if os.path.isfile(os.path.join(image_path, f, "ground_truth.txt"))]
-    
-    print(f"Found {len(defect_folders)} valid Castings out of {len(all_folders)} total")
-    
-    if not defect_folders:
-        raise ValueError("No Castings with ground_truth.txt found!")
-    
-    random.shuffle(defect_folders)
-    folds = [defect_folders[i::k] for i in range(k)]
+
+    castings = sorted(all_folders)
+    castings_with_gt = [f for f in castings
+                        if os.path.isfile(os.path.join(image_path, f, "ground_truth.txt"))]
+
+    print(f"Found {len(castings)} Castings total ({len(castings_with_gt)} with ground_truth.txt)")
+
+    if not castings:
+        raise ValueError("No Castings folders found!")
+
+    random.shuffle(castings)
+    folds = [castings[i::k] for i in range(k)]
 
     for fold_idx, fold_folders in enumerate(folds):
         fold_name = f"fold_{fold_idx + 1}"
@@ -39,25 +40,20 @@ def make_k_folds(image_path, output_path, k=5):
         os.makedirs(img_dir)
         os.makedirs(lbl_dir)
 
-        print(f"Building {fold_name} ({len(fold_folders)} defect folders)...")
+        print(f"Building {fold_name} ({len(fold_folders)} casting folders)...")
 
         for folder in fold_folders:
             folder_path = os.path.join(image_path, folder)
-            # Find gt file directly in folder (e.g. ground_truth.txt)
-            gt_file = None
             direct_gt = os.path.join(folder_path, "ground_truth.txt")
+            converted_stems = set()
+
             if os.path.isfile(direct_gt):
-                gt_file = direct_gt
-
-
-            if gt_file:
                 # Convert labels first
                 temp_lbl_dir = os.path.join(fold_dir, "labels_temp")
                 os.makedirs(temp_lbl_dir, exist_ok=True)
-                convert_gt_to_yolo(gt_file, folder_path, temp_lbl_dir, class_id=0)
+                convert_gt_to_yolo(direct_gt, folder_path, temp_lbl_dir, class_id=0)
 
                 # Track which stems have labels
-                converted_stems = set()
                 for lbl_file in os.listdir(temp_lbl_dir):
                     src_lbl = os.path.join(temp_lbl_dir, lbl_file)
                     dst_lbl = os.path.join(lbl_dir, f"{folder}_{lbl_file}")
@@ -65,20 +61,27 @@ def make_k_folds(image_path, output_path, k=5):
                     converted_stems.add(os.path.splitext(lbl_file)[0])
 
                 shutil.rmtree(temp_lbl_dir)
-
+            else:
+                # No ground truth means all images are negative examples (empty label files).
+                print(f"WARNING: No gt file found for {folder}, treating images as negatives.")
                 for file in os.listdir(folder_path):
                     if not file.lower().endswith(('.png', '.jpg', '.jpeg')):
                         continue
                     stem = os.path.splitext(file)[0]
-                    if stem in converted_stems:
-                        src = os.path.join(folder_path, file)
-                        dst = os.path.join(img_dir, f"{folder}_{file}")
-                        shutil.copy(src, dst)
-                    else:
-                        print(f"  Skipped (no label): {file}")
-            else:
-                # No gt file - skip entirely, we cannot assume these are negative cases
-                print(f"WARNING: No gt file found for {folder}, skipping entire folder.")
+                    empty_label_path = os.path.join(lbl_dir, f"{folder}_{stem}.txt")
+                    open(empty_label_path, 'w').close()
+                    converted_stems.add(stem)
+
+            for file in os.listdir(folder_path):
+                if not file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    continue
+                stem = os.path.splitext(file)[0]
+                if stem in converted_stems:
+                    src = os.path.join(folder_path, file)
+                    dst = os.path.join(img_dir, f"{folder}_{file}")
+                    shutil.copy(src, dst)
+                else:
+                    print(f"  Skipped (no label): {file}")
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
     fold_info = folds
@@ -88,14 +91,18 @@ def make_k_folds(image_path, output_path, k=5):
 def run_k_fold_temp(image_path, output_path, k=5):
     '''Creates fold directories, then for each fold iteration creates a single merged train 
     directory, trains, then deletes it before moving to the next fold - to save file quota'''
+
+    os.makedirs(output_path, exist_ok=True)
+    for d in os.listdir(output_path):
+        d_path = os.path.join(output_path, d)
+        if d.startswith("fold_") and os.path.isdir(d_path):
+            shutil.rmtree(d_path)
+            print(f"Cleared stale fold directory: {d}")
     
     # First build the base folds
     fold_info = make_k_folds(image_path, output_path, k)
 
-    all_folds = sorted([
-        d for d in os.listdir(output_path)
-        if d.startswith("fold_") and os.path.isdir(os.path.join(output_path, d))
-    ])
+    all_folds = [f"fold_{i + 1}" for i in range(len(fold_info))]
 
     for fold in all_folds:
         fold_path = os.path.join(output_path, fold)
