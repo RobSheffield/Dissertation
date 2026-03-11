@@ -11,11 +11,19 @@ from data.format_converter import convert_gt_to_yolo
 
 def make_k_folds(image_path, output_path, k=5):
     '''K-fold across dataset - detefects_by_folder defines whether folders seperate groups of images of the same defect. (required to avoid training images leaking into test set)'''
-    defect_folders = [f for f in os.listdir(image_path) 
-                      if os.path.isdir(os.path.join(image_path, f))]
+    # Get ALL directories first
+    all_folders = [f for f in os.listdir(image_path) 
+                   if os.path.isdir(os.path.join(image_path, f))]
+    
+    defect_folders = [f for f in all_folders
+                      if os.path.isfile(os.path.join(image_path, f, "ground_truth.txt"))]
+    
+    print(f"Found {len(defect_folders)} valid Castings out of {len(all_folders)} total")
+    
+    if not defect_folders:
+        raise ValueError("No Castings with ground_truth.txt found!")
     
     random.shuffle(defect_folders)
-
     folds = [defect_folders[i::k] for i in range(k)]
 
     for fold_idx, fold_folders in enumerate(folds):
