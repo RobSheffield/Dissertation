@@ -73,8 +73,8 @@ def make_k_folds(image_path, output_path, k=5):
                 print(f"WARNING: No gt file found for {folder}, skipping entire folder.")
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
-        fold_info = folds
-        return fold_info
+    fold_info = folds
+    return fold_info
 
 
 def run_k_fold_temp(image_path, output_path, k=5):
