@@ -175,4 +175,4 @@ def run_k_fold_temp(image_path, output_path, k=5):
             f.write(f"Fold info: {fold_info}\n")
 
 if __name__ == '__main__':
-    run_k_fold_temp("Castings", output_path="fold_paths_one", k=10)
+    run_k_fold_temp("Castings", output_path="fold_paths", k=10)
