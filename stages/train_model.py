@@ -54,7 +54,7 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
             epochs=int(epochs),
             cache=True,
             device=device)
-    else:
+    elif flips:
         results = model.train(
             data=data_yaml,
             imgsz = int(img_size),
@@ -62,8 +62,8 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
             epochs = int(epochs),
             cache = True,
             device = device,
-            fliplr = 0.5,
-            flipud=0.5)
+            fliplr = 0,
+            flipud=1.0)
 
     save_dir = results.save_dir
 

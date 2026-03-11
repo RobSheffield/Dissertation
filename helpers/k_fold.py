@@ -179,7 +179,8 @@ def run_k_fold_temp(image_path, output_path, k=5):
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="120"
+            epochs="120",
+            flips = False
         )
 
         # Delete merged dir immediately after training to save file quota
