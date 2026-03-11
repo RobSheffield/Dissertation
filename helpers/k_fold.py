@@ -182,6 +182,17 @@ def run_k_fold_temp(image_path, output_path, k=5):
             epochs="120",
             flips = False
         )
+        train_yolo(
+            data_yaml=yaml_path,
+            model_info=model_info_json,
+            training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            model_dir=model_dir+"_vertical_flips",
+            weights="yolov5m.pt",
+            img_size="768",
+            batch_size="16",
+            epochs="120",
+            flips = True
+        )
 
         # Delete merged dir immediately after training to save file quota
         shutil.rmtree(temp_dir)
