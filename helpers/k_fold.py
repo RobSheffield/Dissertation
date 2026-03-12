@@ -4,33 +4,18 @@ import random
 import shutil
 import datetime
 import yaml
-import json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from stages.train_model import train_yolo
 from data.format_converter import convert_gt_to_yolo
 
-def make_k_folds(image_path, output_path, k=5, only_with_gt=True):
+def run_k_fold(image_path, output_path, k=5):
     '''K-fold across dataset - detefects_by_folder defines whether folders seperate groups of images of the same defect. (required to avoid training images leaking into test set)'''
-    # Get ALL directories first
-    all_folders = [f for f in os.listdir(image_path) 
-                   if os.path.isdir(os.path.join(image_path, f))]
+    defect_folders = [f for f in os.listdir(image_path)
+                      if os.path.isdir(os.path.join(image_path, f))]
 
-    castings = sorted(all_folders)
-    castings_with_gt = [f for f in castings
-                        if os.path.isfile(os.path.join(image_path, f, "ground_truth.txt"))]
+    random.shuffle(defect_folders)
 
-    print(f"Found {len(castings)} Castings total ({len(castings_with_gt)} with ground_truth.txt)")
-
-    if not castings:
-        raise ValueError("No Castings folders found!")
-
-    # TEMP FIX: set only_with_gt=False to restore old behavior
-    source_castings = castings_with_gt if only_with_gt else castings
-    if not source_castings:
-        raise ValueError("No Castings folders with ground_truth.txt found!")
-
-    random.shuffle(source_castings)
-    folds = [source_castings[i::k] for i in range(k)]
+    folds = [defect_folders[i::k] for i in range(k)]
 
     for fold_idx, fold_folders in enumerate(folds):
         fold_name = f"fold_{fold_idx + 1}"
@@ -45,20 +30,25 @@ def make_k_folds(image_path, output_path, k=5, only_with_gt=True):
         os.makedirs(img_dir)
         os.makedirs(lbl_dir)
 
-        print(f"Building {fold_name} ({len(fold_folders)} casting folders)...")
+        print(f"Building {fold_name} ({len(fold_folders)} defect folders)...")
 
         for folder in fold_folders:
             folder_path = os.path.join(image_path, folder)
+            # Find gt file directly in folder (e.g. ground_truth.txt)
+            gt_file = None
             direct_gt = os.path.join(folder_path, "ground_truth.txt")
-            converted_stems = set()
-
             if os.path.isfile(direct_gt):
+                gt_file = direct_gt
+
+
+            if gt_file:
                 # Convert labels first
                 temp_lbl_dir = os.path.join(fold_dir, "labels_temp")
                 os.makedirs(temp_lbl_dir, exist_ok=True)
-                convert_gt_to_yolo(direct_gt, folder_path, temp_lbl_dir, class_id=0)
+                convert_gt_to_yolo(gt_file, folder_path, temp_lbl_dir, class_id=0)
 
                 # Track which stems have labels
+                converted_stems = set()
                 for lbl_file in os.listdir(temp_lbl_dir):
                     src_lbl = os.path.join(temp_lbl_dir, lbl_file)
                     dst_lbl = os.path.join(lbl_dir, f"{folder}_{lbl_file}")
@@ -66,58 +56,47 @@ def make_k_folds(image_path, output_path, k=5, only_with_gt=True):
                     converted_stems.add(os.path.splitext(lbl_file)[0])
 
                 shutil.rmtree(temp_lbl_dir)
-            else:
-                # No ground truth means all images are negative examples (empty label files).
-                print(f"WARNING: No gt file found for {folder}, treating images as negatives.")
+
+                # Only copy images that have a matching label
                 for file in os.listdir(folder_path):
                     if not file.lower().endswith(('.png', '.jpg', '.jpeg')):
                         continue
                     stem = os.path.splitext(file)[0]
-                    empty_label_path = os.path.join(lbl_dir, f"{folder}_{stem}.txt")
-                    open(empty_label_path, 'w').close()
-                    converted_stems.add(stem)
-
-            for file in os.listdir(folder_path):
-                if not file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    continue
-                stem = os.path.splitext(file)[0]
-                if stem in converted_stems:
-                    src = os.path.join(folder_path, file)
-                    dst = os.path.join(img_dir, f"{folder}_{file}")
-                    shutil.copy(src, dst)
-                else:
-                    print(f"  Skipped (no label): {file}")
+                    if stem in converted_stems:
+                        src = os.path.join(folder_path, file)
+                        dst = os.path.join(img_dir, f"{folder}_{file}")
+                        shutil.copy(src, dst)
+                    else:
+                        print(f"  Skipped (no label): {file}")
+            else:
+                print(f"WARNING: No gt file found for {folder}, skipping entire folder.")
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
-    fold_info = folds
-    return fold_info
 
 
-def run_k_fold_temp(image_path, output_path, k=5):
-    '''Creates fold directories, then for each fold iteration creates a single merged train 
+def run_k_fold_temp(image_path, output_path, k=8):
+    '''Creates fold directories, then for each fold iteration creates a single merged train
     directory, trains, then deletes it before moving to the next fold - to save file quota'''
 
-    os.makedirs(output_path, exist_ok=True)
-    for d in os.listdir(output_path):
-        d_path = os.path.join(output_path, d)
-        if d.startswith("fold_") and os.path.isdir(d_path):
-            shutil.rmtree(d_path)
-            print(f"Cleared stale fold directory: {d}")
-    
     # First build the base folds
-    fold_info = make_k_folds(image_path, output_path, k)
+    run_k_fold(image_path, output_path, k)
 
-    all_folds = [f"fold_{i + 1}" for i in range(len(fold_info))]
+    all_folds = sorted([
+        d for d in os.listdir(output_path)
+        if d.startswith("fold_") and os.path.isdir(os.path.join(output_path, d))
+    ])
 
-    for fold in all_folds[:1]:  # TEMP - just do first fold for testing
+    model_info_json = '{"name":"k_fold","model":"YOLOv5","number_of_images":"","date_time_trained":"","total_training_time":"","path":"","epoch":"","box_loss":"","cls_loss":"","mAP_50":"","mAP_50_95":"","precision":"","recall":"","dataset_config":"K-Fold","starting_model":"","folder_name":"","metamorphic_test_result":"","differential_test_result":"","fuzzing_test_result":""}'
+
+    for fold in all_folds[:1]: #TEMP - just do first fold for now
         fold_path = os.path.join(output_path, fold)
 
         # Create merged train dir just for this fold
         temp_dir = os.path.join(fold_path, "train_merged")
         temp_img_dir = os.path.join(temp_dir, "images")
         temp_lbl_dir = os.path.join(temp_dir, "labels")
-        os.makedirs(temp_img_dir, exist_ok=True)
-        os.makedirs(temp_lbl_dir, exist_ok=True)
+        os.makedirs(temp_img_dir)
+        os.makedirs(temp_lbl_dir)
 
         # Merge k-1 folds into temp dir
         for other_fold in all_folds:
@@ -132,88 +111,54 @@ def run_k_fold_temp(image_path, output_path, k=5):
             for file in os.listdir(src_lbl_dir):
                 shutil.copy(os.path.join(src_lbl_dir, file), os.path.join(temp_lbl_dir, file))
 
-        num_training_images = len(os.listdir(temp_img_dir))
-        print(f"{fold} merged train: {num_training_images} images, {len(os.listdir(temp_lbl_dir))} labels")
+        print(f"{fold} merged train: {len(os.listdir(temp_img_dir))} images, {len(os.listdir(temp_lbl_dir))} labels")
 
-
-        model_info_dict = {
-            "name": "k_fold",
-            "model": "YOLOv5",
-            "number_of_images": str(num_training_images),
-            "date_time_trained": "",
-            "total_training_time": "",
-            "path": "",
-            "epoch": "",
-            "box_loss": "",
-            "cls_loss": "",
-            "mAP_50": "",
-            "mAP_50_95": "",
-            "precision": "",
-            "recall": "",
-            "dataset_config": "K-Fold",
-            "starting_model": "",
-            "folder_name": "",
-            "metamorphic_test_result": "",
-            "differential_test_result": "",
-            "fuzzing_test_result": "",
-        }
-        model_info_json = json.dumps(model_info_dict)
-
-        abs_train = os.path.abspath(temp_img_dir)
-        abs_val   = os.path.abspath(os.path.join(fold_path, "images"))
+        # Write yaml pointing to merged train and this fold's val
+        val_dir = os.path.join(os.path.abspath(fold_path), "images")
         yaml_content = {
-            'path': '.',        
-            'train': abs_train,
-            'val': abs_val,
+            'path': os.path.abspath(output_path),
+            'train': os.path.abspath(temp_img_dir),
+            'val': val_dir,
             'nc': 1,
             'names': ['defect']
         }
-        print(f"  YAML train path: {abs_train} (exists: {os.path.exists(abs_train)})")
-        print(f"  YAML val   path: {abs_val}   (exists: {os.path.exists(abs_val)})")
         yaml_path = os.path.join(fold_path, "data.yaml")
         with open(yaml_path, 'w') as f:
             yaml.dump(yaml_content, f, default_flow_style=False, sort_keys=False)
 
         print(f"Training fold {fold} ({all_folds.index(fold)+1}/{len(all_folds)})...")
-        model_dir = os.path.join(fold_path, "models")
-
-        no_flip_dir = os.path.join(model_dir, "no_flips_left_or_right_75")
-        flip_dir = os.path.join(model_dir, "vertical_flips_always_75")
 
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=no_flip_dir,
+            model_dir=os.path.join("models_no_flip_1543", fold),
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="75",
+            epochs="250",
             flips=False
         )
-
-        os.makedirs(no_flip_dir, exist_ok=True)
-        with open(os.path.join(no_flip_dir, "castings_used.txt"), "w", encoding="utf-8") as f:
-            f.write(f"Fold info: {fold_info}\n")
-
+        
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=flip_dir,
+            model_dir=os.path.join("models_flip_1543", fold),
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="75",
+            epochs="250",
             flips=True
         )
 
-        os.makedirs(flip_dir, exist_ok=True)
-        with open(os.path.join(flip_dir, "castings_used.txt"), "w", encoding="utf-8") as f:
-            f.write(f"Fold info: {fold_info}\n")
 
         # Delete merged dir immediately after training to save file quota
         shutil.rmtree(temp_dir)
+        print(f"Cleaned up temp dir for {fold}")
+        print(f"Finished fold {fold}")
+
+    print("All folds complete!")
 
 if __name__ == '__main__':
-    run_k_fold_temp("Castings", output_path="fold_paths", k=10)
+    run_k_fold_temp("Castings", output_path="Folds_768", k=8)
