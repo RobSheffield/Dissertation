@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from stages.train_model import train_yolo
 from data.format_converter import convert_gt_to_yolo
 
-def make_k_folds(image_path, output_path, k=5):
+def make_k_folds(image_path, output_path, k=5, only_with_gt=True):
     '''K-fold across dataset - detefects_by_folder defines whether folders seperate groups of images of the same defect. (required to avoid training images leaking into test set)'''
     # Get ALL directories first
     all_folders = [f for f in os.listdir(image_path) 
@@ -24,8 +24,13 @@ def make_k_folds(image_path, output_path, k=5):
     if not castings:
         raise ValueError("No Castings folders found!")
 
-    random.shuffle(castings)
-    folds = [castings[i::k] for i in range(k)]
+    # TEMP FIX: set only_with_gt=False to restore old behavior
+    source_castings = castings_with_gt if only_with_gt else castings
+    if not source_castings:
+        raise ValueError("No Castings folders with ground_truth.txt found!")
+
+    random.shuffle(source_castings)
+    folds = [source_castings[i::k] for i in range(k)]
 
     for fold_idx, fold_folders in enumerate(folds):
         fold_name = f"fold_{fold_idx + 1}"
@@ -182,6 +187,14 @@ def run_k_fold_temp(image_path, output_path, k=5):
             epochs="75",
             flips = False
         )
+        trained_model_dir = model_dir+"no_flips_left_or_right_75"
+        # Ensure destination exists before writing castings metadata
+        os.makedirs(trained_model_dir, exist_ok=True)
+        with open(os.path.join(trained_model_dir, "castings_used.txt"), "w", encoding="utf-8") as f:
+            f.write(f"Fold info: {fold_info}\n")
+
+
+        
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
@@ -194,13 +207,15 @@ def run_k_fold_temp(image_path, output_path, k=5):
             flips = True
         )
 
-        # Delete merged dir immediately after training to save file quota
-        shutil.rmtree(temp_dir)
-
+        trained_model_dir = model_dir+"vertical_flips_always_75"
         # Ensure destination exists before writing castings metadata
         os.makedirs(trained_model_dir, exist_ok=True)
         with open(os.path.join(trained_model_dir, "castings_used.txt"), "w", encoding="utf-8") as f:
             f.write(f"Fold info: {fold_info}\n")
+
+
+        # Delete merged dir immediately after training to save file quota
+        shutil.rmtree(temp_dir)
 
 if __name__ == '__main__':
     run_k_fold_temp("Castings", output_path="fold_paths", k=10)
