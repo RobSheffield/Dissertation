@@ -353,7 +353,7 @@ class TestingTab(QWidget):
         #TODO temporary fix
         if self.data_combo.currentIndex() <= 0:
             img_p = os.path.join("data", "images", "val")
-            lab_p = os.path.join("data", "images", "val")
+            lab_p = os.path.join("data", "labels", "val")
         else:
             dataset_name = self.data_combo.currentText()
             img_p = os.path.join("stored_training_images", "images", "raw")

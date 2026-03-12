@@ -176,11 +176,13 @@ def run_k_fold_temp(image_path, output_path, k=5):
 
         print(f"Training fold {fold} ({all_folds.index(fold)+1}/{len(all_folds)})...")
         model_dir = os.path.join(fold_path, "models")
+        model_dir=model_dir + "no_flips_left_or_right_75"
+
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=model_dir + "no_flips_left_or_right_75",
+            model_dir=model_dir,
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
