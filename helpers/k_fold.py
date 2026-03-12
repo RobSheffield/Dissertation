@@ -175,30 +175,31 @@ def run_k_fold_temp(image_path, output_path, k=5):
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=model_dir + "_no_flips_vertical_test",
+            model_dir=model_dir + "no_flips_left_or_right_75",
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="120",
+            epochs="75",
             flips = False
         )
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=model_dir+"_vertical_flips",
+            model_dir=model_dir+"vertical_flips_always_75",
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="120",
+            epochs="75",
             flips = True
         )
 
         # Delete merged dir immediately after training to save file quota
         shutil.rmtree(temp_dir)
 
-        #store what castings were used for this fold (important)
-        with open(os.path.join(model_dir, "castings_used.txt"), 'w') as f:
+        # Ensure destination exists before writing castings metadata
+        os.makedirs(trained_model_dir, exist_ok=True)
+        with open(os.path.join(trained_model_dir, "castings_used.txt"), "w", encoding="utf-8") as f:
             f.write(f"Fold info: {fold_info}\n")
 
 if __name__ == '__main__':

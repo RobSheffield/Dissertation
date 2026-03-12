@@ -53,7 +53,9 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
             batch=int(batch_size),
             epochs=int(epochs),
             cache=True,
-            device=device)
+            device=device,
+            fliplr = 0,
+            flipsud = 0)
     elif flips:
         results = model.train(
             data=data_yaml,
