@@ -176,45 +176,41 @@ def run_k_fold_temp(image_path, output_path, k=5):
 
         print(f"Training fold {fold} ({all_folds.index(fold)+1}/{len(all_folds)})...")
         model_dir = os.path.join(fold_path, "models")
-        model_dir=model_dir + "no_flips_left_or_right_75"
+
+        no_flip_dir = os.path.join(model_dir, "no_flips_left_or_right_75")
+        flip_dir = os.path.join(model_dir, "vertical_flips_always_75")
 
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=model_dir,
+            model_dir=no_flip_dir,
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
             epochs="75",
-            flips = False
+            flips=False
         )
-        trained_model_dir = model_dir+"no_flips_left_or_right_75"
-        # Ensure destination exists before writing castings metadata
-        os.makedirs(trained_model_dir, exist_ok=True)
-        with open(os.path.join(trained_model_dir, "castings_used.txt"), "w", encoding="utf-8") as f:
+
+        os.makedirs(no_flip_dir, exist_ok=True)
+        with open(os.path.join(no_flip_dir, "castings_used.txt"), "w", encoding="utf-8") as f:
             f.write(f"Fold info: {fold_info}\n")
 
-
-        
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=model_dir+"vertical_flips_always_75",
+            model_dir=flip_dir,
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
             epochs="75",
-            flips = True
+            flips=True
         )
 
-        trained_model_dir = model_dir+"vertical_flips_always_75"
-        # Ensure destination exists before writing castings metadata
-        os.makedirs(trained_model_dir, exist_ok=True)
-        with open(os.path.join(trained_model_dir, "castings_used.txt"), "w", encoding="utf-8") as f:
+        os.makedirs(flip_dir, exist_ok=True)
+        with open(os.path.join(flip_dir, "castings_used.txt"), "w", encoding="utf-8") as f:
             f.write(f"Fold info: {fold_info}\n")
-
 
         # Delete merged dir immediately after training to save file quota
         shutil.rmtree(temp_dir)
