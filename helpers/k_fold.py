@@ -115,6 +115,8 @@ def run_k_fold_temp(image_path, output_path, k=8):
 
         # Write yaml pointing to merged train and this fold's val
         val_dir = os.path.join(os.path.abspath(fold_path), "images")
+        val_lbl_dir = os.path.join(os.path.abspath(fold_path), "labels")
+        
         yaml_content = {
             'path': os.path.abspath(output_path),
             'train': os.path.abspath(temp_img_dir),
@@ -125,6 +127,11 @@ def run_k_fold_temp(image_path, output_path, k=8):
         yaml_path = os.path.join(fold_path, "data.yaml")
         with open(yaml_path, 'w') as f:
             yaml.dump(yaml_content, f, default_flow_style=False, sort_keys=False)
+
+        print(f"Train images: {len(os.listdir(temp_img_dir))}")
+        print(f"Train labels: {len(os.listdir(temp_lbl_dir))}")
+        print(f"Val images: {len(os.listdir(val_dir))}")
+        print(f"Val labels: {len(os.listdir(val_lbl_dir))}")
 
         print(f"Training fold {fold} ({all_folds.index(fold)+1}/{len(all_folds)})...")
 
