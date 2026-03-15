@@ -159,10 +159,11 @@ def run_k_fold_temp(image_path, output_path, k=8):
             flips=True
         )
 
-
+        # TEMP FIX: Commented out to prevent destroying the temp dir during testing
         # Delete merged dir immediately after training to save file quota
-        shutil.rmtree(temp_dir)
-        print(f"Cleaned up temp dir for {fold}")
+        # shutil.rmtree(temp_dir)
+        
+        print(f"Retained temp dir for inspection: {temp_dir}")
         print(f"Finished fold {fold}")
 
     print("All folds complete!")

@@ -4,38 +4,36 @@
 import os
 import numpy as np
 from PIL import Image
-import re
-
 
 def convert_gt_to_yolo(gt_file, images_dir, output_dir, class_id=0):
     """
-    Converts a ground truth file to YOLOv5 format.
-
-    Args:
-        gt_file (str): Path to the `ground_truth.txt` file.
-        images_dir (str): Directory containing the images.
-        output_dir (str): Directory to save YOLOv5 annotations.
-        class_id (int): YOLO class ID to assign to all annotations (default is 0).
+    Converts a ground truth file to YOLOv5 format using the original working logic.
     """
-    # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
-    # Load ground truth data
-    gt_data = np.loadtxt(gt_file)
-    if gt_data.ndim == 1:
-        gt_data = gt_data.reshape(1, -1)  # Handle single annotation row
+    try:
+        gt_data = np.loadtxt(gt_file)
+        # Handle case where there is only one annotation in the file
+        if gt_data.ndim == 1:
+            gt_data = gt_data.reshape(1, -1)
+    except Exception as e:
+        print(f"Error reading GT file {gt_file}: {e}")
+        return []
 
-    # Iterate over all images in the directory
-    image_files = [f for f in os.listdir(images_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
+    image_files = [f for f in os.listdir(images_dir) if f.endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff'))]
+    processed_images = set()
+    converted_stems = []
 
     for image_file in image_files:
-        # Extract image ID - find first numeric segment in filename
-        name_no_ext = os.path.splitext(image_file)[0]
-        numbers = re.findall(r'\d+', name_no_ext)
-        if not numbers:
-            print(f"Could not extract ID from {image_file}, skipping.")
+        try:
+            # Extract image ID from the file name (e.g. C0001_0015.png -> 15)
+            image_id = int(image_file.split('_')[1].split('.')[0]) 
+        except (IndexError, ValueError):
+            print(f"Skipping {image_file}, irregular naming format.")
             continue
-        image_id = int(numbers[-1])  # use last number in filename
+            
+        stem = os.path.splitext(image_file)[0]
+        converted_stems.append(stem)
         image_path = os.path.join(images_dir, image_file)
 
         # Get image dimensions
@@ -43,32 +41,32 @@ def convert_gt_to_yolo(gt_file, images_dir, output_dir, class_id=0):
             img_width, img_height = img.size
 
         # Find ground truth annotations for the current image
-        matches = gt_data[gt_data[:, 0] == image_id]
+        if len(gt_data) > 0 and image_id in gt_data[:, 0]:
+            image_annotations = gt_data[gt_data[:, 0] == image_id][:, 1:]
+            yolo_lines = []
 
-        if len(matches) == 0:
-            # TEMP FIX: skip images with no GT annotations instead of creating empty labels
-            # To revert, uncomment the two lines below and remove 'continue'
-            # label_file = os.path.join(output_dir, os.path.splitext(image_file)[0] + ".txt")
-            # open(label_file, 'w').close()
-            continue
+            # Convert ground truth annotations to YOLO format
+            for bbox in image_annotations:
+                x_min, x_max, y_min, y_max = bbox  # Using your original coordinate unpacking
+                x_center = (x_min + x_max) / 2 / img_width
+                y_center = (y_min + y_max) / 2 / img_height
+                norm_width = (x_max - x_min) / img_width
+                norm_height = (y_max - y_min) / img_height
 
-        yolo_lines = []
-        for bbox in matches[:, 1:]:
-            x_min, x_max, y_min, y_max = bbox
-            x_center = (x_min + x_max) / 2 / img_width
-            y_center = (y_min + y_max) / 2 / img_height
-            norm_width = (x_max - x_min) / img_width
-            norm_height = (y_max - y_min) / img_height
-            yolo_lines.append(f"{class_id} {x_center:.6f} {y_center:.6f} {norm_width:.6f} {norm_height:.6f}")
+                yolo_lines.append(f"{class_id} {x_center} {y_center} {norm_width} {norm_height}")
 
-        if yolo_lines:
-            label_file = os.path.join(output_dir, os.path.splitext(image_file)[0] + ".txt")
-            with open(label_file, 'w') as f:
-                f.write('\n'.join(yolo_lines))
-            print(f"Saved {len(yolo_lines)} annotations for {image_file}.")
+            # Save YOLO annotations
+            yolo_file_path = os.path.join(output_dir, stem + '.txt')
+            with open(yolo_file_path, 'w') as yolo_file:
+                yolo_file.write('\n'.join(yolo_lines))
         else:
-            print(f"WARNING: Empty annotations for {image_file}, skipping.")
+            # Create an empty label file for defect-free images (Negatives)
+            yolo_file_path = os.path.join(output_dir, stem + '.txt')
+            open(yolo_file_path, 'w').close()
 
+        processed_images.add(image_id)
+
+    return converted_stems
 
 if __name__ == "__main__":
     ground_truth_file = "FULL_PATH_TO_GROUND_TRUTH_TXT_FOLDER/ground_truth.txt"
