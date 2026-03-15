@@ -156,7 +156,7 @@ def run_k_fold_temp(image_path, output_path, k=8):
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="250",
+            epochs="75",
             flips=False
         )
         
@@ -168,7 +168,7 @@ def run_k_fold_temp(image_path, output_path, k=8):
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="250",
+            epochs="75",
             flips=True
         )
 
