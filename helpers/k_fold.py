@@ -59,7 +59,7 @@ def run_k_fold(image_path, output_path, k=5):
 
                 # Only copy images that have a matching label
                 for file in os.listdir(folder_path):
-                    if not file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    if not file.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff')):
                         continue
                     stem = os.path.splitext(file)[0]
                     if stem in converted_stems:
@@ -69,7 +69,20 @@ def run_k_fold(image_path, output_path, k=5):
                     else:
                         print(f"  Skipped (no label): {file}")
             else:
-                print(f"WARNING: No gt file found for {folder}, skipping entire folder.")
+                print(f"No gt file for {folder}, treating ALL images as negatives (defect-free).")
+                for file in os.listdir(folder_path):
+                    if not file.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff')):
+                        continue
+                    stem = os.path.splitext(file)[0]
+                    
+                    # Copy image
+                    src_img = os.path.join(folder_path, file)
+                    dst_img = os.path.join(img_dir, f"{folder}_{file}")
+                    shutil.copy(src_img, dst_img)
+                    
+                    # Create empty label file
+                    empty_lbl_path = os.path.join(lbl_dir, f"{folder}_{stem}.txt")
+                    open(empty_lbl_path, 'w').close()
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
 
