@@ -157,11 +157,11 @@ def train_k_fold(folds_path="Folds"):
         print(f"  Total images in combined train: {len(os.listdir(combined_train_img))}")
         print(f"  Total labels in combined train: {len(os.listdir(combined_train_lbl))}")
 
-        # Create YAML with absolute paths
+        # Create YAML with relative paths (YOLOv5 standard)
         yaml_content = {
-            'path': os.path.abspath(fold_path),  # Absolute path to fold directory
-            'train': os.path.abspath(combined_train_img),  # Absolute path to train images
-            'val': os.path.abspath(os.path.join(fold_path, 'images')),  # Absolute path to val images
+            'path': os.path.abspath(fold_path),
+            'train': 'train_combined_images',
+            'val': 'images',
             'nc': 1,
             'names': ['defect']
         }
