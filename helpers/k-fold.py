@@ -154,11 +154,11 @@ def train_k_fold(folds_path="Folds"):
                     except (OSError, NotImplementedError):
                         shutil.copy2(src, dst)
         
-        # Create YAML with single train/val paths
+        # Create YAML with absolute paths
         yaml_content = {
-            'path': fold_path,
-            'train': 'train_combined_images',
-            'val': 'images',
+            'path': os.path.abspath(fold_path),  # Absolute path to fold directory
+            'train': os.path.abspath(combined_train_img),  # Absolute path to train images
+            'val': os.path.abspath(os.path.join(fold_path, 'images')),  # Absolute path to val images
             'nc': 1,
             'names': ['defect']
         }
