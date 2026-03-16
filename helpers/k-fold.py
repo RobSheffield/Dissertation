@@ -10,14 +10,34 @@ from stages.train_model import train_yolo
 from data.format_converter import convert_gt_to_yolo
 
 def run_k_fold(image_path, output_path, k=5):
-    '''K-fold across dataset - detefects_by_folder defines whether folders seperate groups of images of the same defect. (required to avoid training images leaking into test set)'''
+    '''K-fold across dataset - balances folds by image count per folder'''
     defect_folders = [f for f in os.listdir(image_path) 
                       if os.path.isdir(os.path.join(image_path, f))]
     
-    random.shuffle(defect_folders)
+    # 1. Count images in each folder and store as (folder_name, count)
+    folder_counts = []
+    for folder in defect_folders:
+        path = os.path.join(image_path, folder)
+        count = len([f for f in os.listdir(path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+        if count > 0:
+            folder_counts.append((folder, count))
+    
+    # 2. Sort folders by size (descending) - Largest first helps balancing
+    folder_counts.sort(key=lambda x: x[1], reverse=True)
 
-    folds = [defect_folders[i::k] for i in range(k)]
+    # 3. Use Greedy Partitioning: Assign folder to the fold that currently has the fewest images
+    folds = [[] for _ in range(k)]
+    fold_totals = [0] * k
 
+    for folder, count in folder_counts:
+        # Find the fold index with the minimum current total images
+        min_fold_idx = fold_totals.index(min(fold_totals))
+        folds[min_fold_idx].append(folder)
+        fold_totals[min_fold_idx] += count
+
+    print(f"Fold distribution (image counts): {fold_totals}")
+
+    # 4. proceed with building the folds
     for fold_idx, fold_folders in enumerate(folds):
         fold_name = f"fold_{fold_idx + 1}"
         fold_dir = os.path.join(output_path, fold_name)
