@@ -115,16 +115,28 @@ def train_k_fold(folds_path="Folds"):
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=os.path.join("models", fold),
+            model_dir=os.path.join("models_normal", fold),
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
             epochs="50"
         )
+        train_yolo(
+            data_yaml=yaml_path,
+            model_info=model_info_json,
+            training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            model_dir=os.path.join("models_flip_vert", fold),
+            weights="yolov5m.pt",
+            img_size="768",
+            batch_size="16",
+            epochs="50",
+            flips=True
+        )
+
         print(f"Finished fold {fold}")
 
     print("All folds complete!")
 
 if __name__ == '__main__':
-    run_k_fold("Castings", output_path="Folds_768", k=8)
+    run_k_fold("Castings", output_path="Folds", k=8)
     train_k_fold("Folds")

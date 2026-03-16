@@ -53,7 +53,9 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
             batch=int(batch_size),
             epochs=int(epochs),
             cache=True,
-            device=device)
+            device=device,
+            fliplr = 0.5,
+            flipud=0)
     else:
         results = model.train(
             data=data_yaml,
@@ -63,7 +65,7 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
             cache = True,
             device = device,
             fliplr = 0.5,
-            flipud=0.5)
+            flipud = 1)
 
     save_dir = results.save_dir
 
