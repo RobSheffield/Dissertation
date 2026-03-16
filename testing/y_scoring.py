@@ -1,9 +1,11 @@
-import helpers.image_analysis
+import sys
 import os
 import shutil
 from pathlib import Path
 from ultralytics import YOLO
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+import helpers.image_analysis
 
 def make_y_segments(images_dir, labels_dir, output_root, n_segments=5):
     images_dir = Path(images_dir)
@@ -29,24 +31,33 @@ def make_y_segments(images_dir, labels_dir, output_root, n_segments=5):
                 kept[seg].append(line.strip())
 
         stem = label_file.stem
-        image_file = f"{stem}.png"
+        image_name = f"{stem}.png"  # Renamed to clarify this is just a filename
+        source_image_path = images_dir / image_name # The actual path to the image
 
         for seg, lines in kept.items():
             if not lines:
                 continue
 
             seg_img, seg_lbl = segment_dirs[seg]
-            shutil.copy2(image_file, seg_img / image_file.name)
+            
+            # Check if source exists before copying
+            if source_image_path.exists():
+                shutil.copy2(source_image_path, seg_img / image_name)
+            else:
+                print(f"Warning: Image not found at {source_image_path}")
 
             with open(seg_lbl / label_file.name, "w", encoding="utf-8") as f:
                 f.write("\n".join(lines) + "\n")
 
 
 def write_yaml(yaml_path, val_images_path):
-    yaml_text = f"""names:
-- '0'
-nc: 1
-val: {Path(val_images_path).as_posix()}
+    # Ultralytics requires 'train' even for validation-only runs
+    yaml_text = f"""
+path: {Path(val_images_path).parent.resolve().as_posix()}
+train: images
+val: images
+names:
+  0: defect
 """
     Path(yaml_path).write_text(yaml_text, encoding="utf-8")
 
@@ -59,32 +70,35 @@ def evaluate_segments(model_path, segmented_root, n_segments=5):
         val_path = Path(segmented_root) / f"segment_{i}" / "images"
         yaml_path = Path(segmented_root) / f"segment_{i}" / "dataset.yaml"
         write_yaml(yaml_path, val_path)
-        metrics = model.val(data=str(yaml_path), split="val")
+        # Added workers=0 to help avoid multiprocessing issues on Windows if needed
+        metrics = model.val(data=str(yaml_path), split="val", workers=0) 
         results[i] = float(metrics.box.map50)
     return results
 
+if __name__ == '__main__':
+    make_y_segments(
+        images_dir="data/images/val",
+        labels_dir="data/labels/val",
+        output_root="temp_y_segments",
+        n_segments=5
+    )
 
-make_y_segments(
-    images_dir="fold_paths/fold_1/images",
-    labels_dir="fold_paths/fold_1/labels",
-    output_root="temp_y_segments",
-    n_segments=5
-)
+    scores = evaluate_segments(
+        model_path="flipers/fold_1_noFLIP/weights/best.pt",
+        segmented_root="temp_y_segments",
+        n_segments=5
+    )
 
-scores = evaluate_segments(
-    model_path="fold_paths/fold_1/weights/best.pt",
-    segmented_root="temp_y_segments",
-    n_segments=5
-)
-
-for seg, map50 in scores.items():
-    print(f"Segment {seg}: mAP50={map50:.4f}")
+    for seg, map50 in scores.items():
+        print(f"Segment {seg}: mAP50={map50:.4f}")
 
 
-scores = evaluate_segments(
-    model_path="fold_paths/fold_1/weights/best.pt",
-    segmented_root="temp_y_segments",
-    n_segments=5
-)
-for seg, map50 in scores.items():
-    print(f"Segment {seg}: mAP50={map50:.4f}")
+
+    scores = evaluate_segments(
+        model_path="flipers/fold_1/weights/best.pt",
+        segmented_root="temp_y_segments",
+        n_segments=5
+    )
+
+    for seg, map50 in scores.items():
+        print(f"Segment {seg}: mAP50={map50:.4f}")

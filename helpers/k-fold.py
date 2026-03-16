@@ -145,5 +145,5 @@ def train_k_fold(folds_path="Folds"):
     print("All folds complete!")
 
 if __name__ == '__main__':
-    run_k_fold("Castings", output_path="Folds", k=8)
+    run_k_fold("Castings", output_path="Folds", k=4)
     train_k_fold("Folds")
