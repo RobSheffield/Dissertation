@@ -136,24 +136,27 @@ def train_k_fold(folds_path="Folds"):
             src_img_dir = os.path.join(folds_path, other_fold, "images")
             src_lbl_dir = os.path.join(folds_path, other_fold, "labels")
             
+            print(f"  Copying images from {other_fold}...")
             if os.path.exists(src_img_dir):
                 for img_file in os.listdir(src_img_dir):
                     src = os.path.join(src_img_dir, img_file)
                     dst = os.path.join(combined_train_img, img_file)
-                    try:
-                        os.symlink(src, dst)
-                    except (OSError, NotImplementedError):
+                    # Always copy on HPC/cluster environments
+                    if not os.path.exists(dst):
                         shutil.copy2(src, dst)
             
+            print(f"  Copying labels from {other_fold}...")
             if os.path.exists(src_lbl_dir):
                 for lbl_file in os.listdir(src_lbl_dir):
                     src = os.path.join(src_lbl_dir, lbl_file)
                     dst = os.path.join(combined_train_lbl, lbl_file)
-                    try:
-                        os.symlink(src, dst)
-                    except (OSError, NotImplementedError):
+                    # Always copy on HPC/cluster environments
+                    if not os.path.exists(dst):
                         shutil.copy2(src, dst)
         
+        print(f"  Total images in combined train: {len(os.listdir(combined_train_img))}")
+        print(f"  Total labels in combined train: {len(os.listdir(combined_train_lbl))}")
+
         # Create YAML with absolute paths
         yaml_content = {
             'path': os.path.abspath(fold_path),  # Absolute path to fold directory
