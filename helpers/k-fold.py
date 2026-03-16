@@ -87,6 +87,13 @@ def train_k_fold(folds_path="Folds"):
     model_info_json = '{"name":"k_fold","model":"YOLOv5","number_of_images":"","date_time_trained":"","total_training_time":"","path":"","epoch":"","box_loss":"","cls_loss":"","mAP_50":"","mAP_50_95":"","precision":"","recall":"","dataset_config":"K-Fold","starting_model":"","folder_name":"","metamorphic_test_result":"","differential_test_result":"","fuzzing_test_result":""}'
 
     for fold in all_folds:
+        # Add this block to clear stale caches
+        print(f"Cleaning stale caches for {fold}...")
+        for f in all_folds:
+            cache_path = os.path.join(folds_path, f, "labels.cache")
+            if os.path.exists(cache_path):
+                os.remove(cache_path)
+
         fold_path = os.path.join(folds_path, fold)
         
         train_dirs = [
@@ -119,7 +126,7 @@ def train_k_fold(folds_path="Folds"):
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="50"
+            epochs="150"
         )
         train_yolo(
             data_yaml=yaml_path,
@@ -129,7 +136,7 @@ def train_k_fold(folds_path="Folds"):
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
-            epochs="50",
+            epochs="150",
             flips=True
         )
 
