@@ -107,7 +107,6 @@ def train_k_fold(folds_path="Folds"):
     model_info_json = '{"name":"k_fold","model":"YOLOv5","number_of_images":"","date_time_trained":"","total_training_time":"","path":"","epoch":"","box_loss":"","cls_loss":"","mAP_50":"","mAP_50_95":"","precision":"","recall":"","dataset_config":"K-Fold","starting_model":"","folder_name":"","metamorphic_test_result":"","differential_test_result":"","fuzzing_test_result":""}'
 
     for fold in all_folds:
-        # Add this block to clear stale caches
         print(f"Cleaning stale caches for {fold}...")
         for f in all_folds:
             cache_path = os.path.join(folds_path, f, "labels.cache")
@@ -116,16 +115,50 @@ def train_k_fold(folds_path="Folds"):
 
         fold_path = os.path.join(folds_path, fold)
         
-        train_dirs = [
-            os.path.join(os.path.abspath(folds_path), d, "images") 
-            for d in all_folds if d != fold
-        ]
-        val_dir = os.path.join(os.path.abspath(fold_path), "images")
-
+        # Create combined training directory with symlinks
+        combined_train_img = os.path.join(fold_path, "train_combined_images")
+        combined_train_lbl = os.path.join(fold_path, "train_combined_labels")
+        
+        # Clean up old combined directories
+        if os.path.exists(combined_train_img):
+            shutil.rmtree(combined_train_img)
+        if os.path.exists(combined_train_lbl):
+            shutil.rmtree(combined_train_lbl)
+            
+        os.makedirs(combined_train_img)
+        os.makedirs(combined_train_lbl)
+        
+        # Symlink (or copy) all other folds into this directory
+        for other_fold in all_folds:
+            if other_fold == fold:  # Skip validation fold
+                continue
+            
+            src_img_dir = os.path.join(folds_path, other_fold, "images")
+            src_lbl_dir = os.path.join(folds_path, other_fold, "labels")
+            
+            if os.path.exists(src_img_dir):
+                for img_file in os.listdir(src_img_dir):
+                    src = os.path.join(src_img_dir, img_file)
+                    dst = os.path.join(combined_train_img, img_file)
+                    try:
+                        os.symlink(src, dst)
+                    except (OSError, NotImplementedError):
+                        shutil.copy2(src, dst)
+            
+            if os.path.exists(src_lbl_dir):
+                for lbl_file in os.listdir(src_lbl_dir):
+                    src = os.path.join(src_lbl_dir, lbl_file)
+                    dst = os.path.join(combined_train_lbl, lbl_file)
+                    try:
+                        os.symlink(src, dst)
+                    except (OSError, NotImplementedError):
+                        shutil.copy2(src, dst)
+        
+        # Create YAML with single train/val paths
         yaml_content = {
-            'path': os.path.abspath(folds_path),
-            'train': train_dirs,
-            'val': val_dir,
+            'path': fold_path,
+            'train': 'train_combined_images',
+            'val': 'images',
             'nc': 1,
             'names': ['defect']
         }
@@ -135,8 +168,8 @@ def train_k_fold(folds_path="Folds"):
             yaml.dump(yaml_content, f, default_flow_style=False, sort_keys=False)
 
         print(f"Training fold {fold} ({all_folds.index(fold)+1}/{len(all_folds)})...")
-        print(f"  val:   {val_dir}")
-        print(f"  train: {train_dirs}")
+        print(f"  val:   {fold_path}/images")
+        print(f"  train: {fold_path}/train_combined_images")
 
         train_yolo(
             data_yaml=yaml_path,
@@ -148,11 +181,12 @@ def train_k_fold(folds_path="Folds"):
             batch_size="16",
             epochs="150"
         )
+
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=os.path.join("models_flip_vert", fold),
+            model_dir=os.path.join("models_flips", fold),
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
@@ -160,6 +194,7 @@ def train_k_fold(folds_path="Folds"):
             flips=True
         )
 
+    
         print(f"Finished fold {fold}")
 
     print("All folds complete!")
