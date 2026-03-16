@@ -175,7 +175,7 @@ def train_k_fold(folds_path="Folds"):
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=os.path.join("models_normal", fold),
+            model_dir=os.path.join("models_normal_merger", fold),
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
@@ -186,7 +186,7 @@ def train_k_fold(folds_path="Folds"):
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=os.path.join("models_flips", fold),
+            model_dir=os.path.join("models_flips_merger", fold),
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
@@ -200,5 +200,5 @@ def train_k_fold(folds_path="Folds"):
     print("All folds complete!")
 
 if __name__ == '__main__':
-    run_k_fold("Castings", output_path="Folds", k=4)
-    train_k_fold("Folds")
+    run_k_fold("Castings", output_path="Folds_merger", k=4)
+    train_k_fold("Folds_merger")
