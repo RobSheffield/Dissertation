@@ -107,61 +107,81 @@ def train_k_fold(folds_path="Folds"):
     model_info_json = '{"name":"k_fold","model":"YOLOv5","number_of_images":"","date_time_trained":"","total_training_time":"","path":"","epoch":"","box_loss":"","cls_loss":"","mAP_50":"","mAP_50_95":"","precision":"","recall":"","dataset_config":"K-Fold","starting_model":"","folder_name":"","metamorphic_test_result":"","differential_test_result":"","fuzzing_test_result":""}'
 
     for fold in all_folds:
-        print(f"Cleaning stale caches for {fold}...")
-        for f in all_folds:
-            cache_path = os.path.join(folds_path, f, "labels.cache")
-            if os.path.exists(cache_path):
-                os.remove(cache_path)
-
+        print(f"\n{'='*60}")
+        print(f"Processing {fold}")
+        print(f"{'='*60}")
+        
         fold_path = os.path.join(folds_path, fold)
         
-        # Create combined training directory with symlinks
-        combined_train_img = os.path.join(fold_path, "train_combined_images")
-        combined_train_lbl = os.path.join(fold_path, "train_combined_labels")
+        # Paths to restructured directories
+        train_img_dir = os.path.join(fold_path, "images", "train")
+        val_img_dir = os.path.join(fold_path, "images", "val")
+        train_lbl_dir = os.path.join(fold_path, "labels", "train")
+        val_lbl_dir = os.path.join(fold_path, "labels", "val")
         
-        # Clean up old combined directories
-        if os.path.exists(combined_train_img):
-            shutil.rmtree(combined_train_img)
-        if os.path.exists(combined_train_lbl):
-            shutil.rmtree(combined_train_lbl)
-            
-        os.makedirs(combined_train_img)
-        os.makedirs(combined_train_lbl)
+        # Create COCO structure (fresh directories)
+        for d in [train_img_dir, val_img_dir, train_lbl_dir, val_lbl_dir]:
+            os.makedirs(d, exist_ok=True)
         
-        # Symlink (or copy) all other folds into this directory
+        # Copy validation set (current fold's original images/labels)
+        print(f"Setting up validation set from {fold}...")
+        old_img_dir = os.path.join(fold_path, "images")
+        old_lbl_dir = os.path.join(fold_path, "labels")
+        
+        if os.path.exists(old_img_dir) and os.path.isdir(old_img_dir):
+            for img_file in os.listdir(old_img_dir):
+                if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    src = os.path.join(old_img_dir, img_file)
+                    dst = os.path.join(val_img_dir, img_file)
+                    if not os.path.exists(dst):
+                        shutil.copy2(src, dst)
+        
+        if os.path.exists(old_lbl_dir) and os.path.isdir(old_lbl_dir):
+            for lbl_file in os.listdir(old_lbl_dir):
+                if lbl_file.endswith('.txt'):
+                    src = os.path.join(old_lbl_dir, lbl_file)
+                    dst = os.path.join(val_lbl_dir, lbl_file)
+                    if not os.path.exists(dst):
+                        shutil.copy2(src, dst)
+        
+        val_img_count = len([f for f in os.listdir(val_img_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+        val_lbl_count = len([f for f in os.listdir(val_lbl_dir) if f.endswith('.txt')])
+        print(f"✓ Val: {val_img_count} images, {val_lbl_count} labels")
+        
+        # Copy training set (all other folds)
+        print(f"Setting up training set from other folds...")
         for other_fold in all_folds:
-            if other_fold == fold:  # Skip validation fold
+            if other_fold == fold:
                 continue
             
-            src_img_dir = os.path.join(folds_path, other_fold, "images")
-            src_lbl_dir = os.path.join(folds_path, other_fold, "labels")
+            src_img = os.path.join(folds_path, other_fold, "images")
+            src_lbl = os.path.join(folds_path, other_fold, "labels")
             
-            print(f"  Copying images from {other_fold}...")
-            if os.path.exists(src_img_dir):
-                for img_file in os.listdir(src_img_dir):
-                    src = os.path.join(src_img_dir, img_file)
-                    dst = os.path.join(combined_train_img, img_file)
-                    # Always copy on HPC/cluster environments
-                    if not os.path.exists(dst):
-                        shutil.copy2(src, dst)
+            if os.path.exists(src_img) and os.path.isdir(src_img):
+                for img_file in os.listdir(src_img):
+                    if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        src = os.path.join(src_img, img_file)
+                        dst = os.path.join(train_img_dir, img_file)
+                        if not os.path.exists(dst):
+                            shutil.copy2(src, dst)
             
-            print(f"  Copying labels from {other_fold}...")
-            if os.path.exists(src_lbl_dir):
-                for lbl_file in os.listdir(src_lbl_dir):
-                    src = os.path.join(src_lbl_dir, lbl_file)
-                    dst = os.path.join(combined_train_lbl, lbl_file)
-                    # Always copy on HPC/cluster environments
-                    if not os.path.exists(dst):
-                        shutil.copy2(src, dst)
+            if os.path.exists(src_lbl) and os.path.isdir(src_lbl):
+                for lbl_file in os.listdir(src_lbl):
+                    if lbl_file.endswith('.txt'):
+                        src = os.path.join(src_lbl, lbl_file)
+                        dst = os.path.join(train_lbl_dir, lbl_file)
+                        if not os.path.exists(dst):
+                            shutil.copy2(src, dst)
         
-        print(f"  Total images in combined train: {len(os.listdir(combined_train_img))}")
-        print(f"  Total labels in combined train: {len(os.listdir(combined_train_lbl))}")
+        train_img_count = len([f for f in os.listdir(train_img_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+        train_lbl_count = len([f for f in os.listdir(train_lbl_dir) if f.endswith('.txt')])
+        print(f"✓ Train: {train_img_count} images, {train_lbl_count} labels")
 
-        # Create YAML with relative paths (YOLOv5 standard)
+        # Create YAML
         yaml_content = {
             'path': os.path.abspath(fold_path),
-            'train': 'train_combined_images',
-            'val': 'images',
+            'train': 'images/train',
+            'val': 'images/val',
             'nc': 1,
             'names': ['defect']
         }
@@ -170,10 +190,7 @@ def train_k_fold(folds_path="Folds"):
         with open(yaml_path, 'w') as f:
             yaml.dump(yaml_content, f, default_flow_style=False, sort_keys=False)
 
-        print(f"Training fold {fold} ({all_folds.index(fold)+1}/{len(all_folds)})...")
-        print(f"  val:   {fold_path}/images")
-        print(f"  train: {fold_path}/train_combined_images")
-
+        print(f"\nTraining {fold} (Normal)...")
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
@@ -185,6 +202,7 @@ def train_k_fold(folds_path="Folds"):
             epochs="150"
         )
 
+        print(f"\nTraining {fold} (Flipped)...")
         train_yolo(
             data_yaml=yaml_path,
             model_info=model_info_json,
@@ -197,10 +215,11 @@ def train_k_fold(folds_path="Folds"):
             flips=True
         )
 
-    
-        print(f"Finished fold {fold}")
+        print(f"✓ Finished {fold}\n")
 
+    print("="*60)
     print("All folds complete!")
+    print("="*60)
 
 if __name__ == '__main__':
     run_k_fold("Castings", output_path="Folds_merger", k=4)
