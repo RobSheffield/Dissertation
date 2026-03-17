@@ -3,6 +3,7 @@ import sys
 import shutil
 import yaml
 from collections import defaultdict
+import datetime
 
 # Add parent directory to path so imports work correctly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -169,7 +170,6 @@ def train_all(folds_path):
 
     for fold in folds:
         fold_dir = os.path.join(folds_path, fold)
-
         yaml_path = os.path.join(fold_dir, "data.yaml")
 
         yaml_data = {
@@ -185,26 +185,55 @@ def train_all(folds_path):
 
         print(f"\nTraining {fold}")
 
+        # Count training images
+        train_img_count = len([f for f in os.listdir(os.path.join(fold_dir, "images/train")) 
+                               if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+
+        # Create proper model_info JSON
+        model_info_json = {
+            "name": fold,
+            "model": "yolo11n",
+            "date_time_trained": datetime.datetime.now().isoformat(),
+            "total_training_time": 0,
+            "number_of_images": train_img_count
+        }
+
+        import json
+        model_info_str = json.dumps(model_info_json)
+
         train_yolo(
             data_yaml=yaml_path,
-            model_info="{}",
-            training_start="",
+            model_info=model_info_str,
+            training_start=datetime.datetime.now().isoformat(),
             model_dir=os.path.join("models", fold),
             weights="yolo11n.pt",   # smaller model (better)
             img_size="640",
             batch_size="16",
-            epochs="150"
+            epochs="50"
         )
+
+                # Create proper model_info JSON
+        model_info_json = {
+            "name": fold+'_flips',
+            "model": "yolo11n",
+            "date_time_trained": datetime.datetime.now().isoformat(),
+            "total_training_time": 0,
+            "number_of_images": train_img_count
+        }
+
+        import json
+        model_info_str = json.dumps(model_info_json)
+
 
         train_yolo(
             data_yaml=yaml_path,
-            model_info="{}",
-            training_start="",
+            model_info=model_info_str,
+            training_start=datetime.datetime.now().isoformat(),
             model_dir=os.path.join("models_flips", fold),
             weights="yolo11n.pt",   # smaller model (better)
             img_size="640",
             batch_size="16",
-            epochs="150",
+            epochs="50",
             flips = True
         )
 
