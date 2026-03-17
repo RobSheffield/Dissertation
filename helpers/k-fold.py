@@ -186,7 +186,7 @@ def train_all(folds_path):
             model_info="{}",
             training_start="",
             model_dir=os.path.join("models", fold),
-            weights="yolov5s.pt",   # smaller model (better)
+            weights="yolo11n.pt",   # smaller model (better)
             img_size="640",
             batch_size="16",
             epochs="150"
@@ -197,7 +197,7 @@ def train_all(folds_path):
             model_info="{}",
             training_start="",
             model_dir=os.path.join("models_flips", fold),
-            weights="yolov5s.pt",   # smaller model (better)
+            weights="yolo11n.pt",   # smaller model (better)
             img_size="640",
             batch_size="16",
             epochs="150",
