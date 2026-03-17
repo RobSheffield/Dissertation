@@ -78,10 +78,12 @@ def run_k_fold(image_path, output_path, k=5):
                 # Track which stems have labels
                 converted_stems = set()
                 for lbl_file in os.listdir(output_labels):
-                    src_lbl = os.path.join(output_labels, lbl_file)
-                    dst_lbl = os.path.join(lbl_dir, f"{folder}_{lbl_file}")
-                    shutil.move(src_lbl, dst_lbl)
-                    converted_stems.add(os.path.splitext(lbl_file)[0])
+                    item_path = os.path.join(output_labels, lbl_file)
+                    if os.path.isfile(item_path) and lbl_file.endswith('.txt'):
+                        dst_lbl = os.path.join(lbl_dir, lbl_file)
+                        shutil.move(item_path, dst_lbl)
+                        stem = os.path.splitext(lbl_file)[0]
+                        converted_stems.add(stem)
 
                 shutil.rmtree(output_labels)
 
@@ -136,21 +138,29 @@ def train_k_fold(folds_path="Folds"):
         old_img_dir = os.path.join(fold_path, "images")
         old_lbl_dir = os.path.join(fold_path, "labels")
         
-        if os.path.exists(old_img_dir) and os.path.isdir(old_img_dir):
-            for img_file in os.listdir(old_img_dir):
-                if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    src = os.path.join(old_img_dir, img_file)
-                    dst = os.path.join(val_img_dir, img_file)
-                    if not os.path.exists(dst):
-                        shutil.copy2(src, dst)
-        
+        # First, collect all label stems from validation set
+        val_label_stems = set()
         if os.path.exists(old_lbl_dir) and os.path.isdir(old_lbl_dir):
             for lbl_file in os.listdir(old_lbl_dir):
-                if lbl_file.endswith('.txt'):
+                if os.path.isfile(os.path.join(old_lbl_dir, lbl_file)) and lbl_file.endswith('.txt'):
+                    stem = os.path.splitext(lbl_file)[0]
+                    val_label_stems.add(stem)
                     src = os.path.join(old_lbl_dir, lbl_file)
                     dst = os.path.join(val_lbl_dir, lbl_file)
-                    if not os.path.exists(dst):
-                        shutil.copy2(src, dst)
+                    shutil.copy2(src, dst)
+        
+        # Copy images that have matching labels (including empty/background)
+        if os.path.exists(old_img_dir) and os.path.isdir(old_img_dir):
+            for img_file in os.listdir(old_img_dir):
+                if os.path.isdir(os.path.join(old_img_dir, img_file)):  # ← Skip directories
+                    continue
+                if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    stem = os.path.splitext(img_file)[0]
+                    if stem in val_label_stems:  # Only copy if label exists (even if empty)
+                        src = os.path.join(old_img_dir, img_file)
+                        dst = os.path.join(val_img_dir, img_file)
+                        if not os.path.exists(dst):
+                            shutil.copy2(src, dst)
         
         val_img_count = len([f for f in os.listdir(val_img_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         val_lbl_count = len([f for f in os.listdir(val_lbl_dir) if f.endswith('.txt')])
@@ -165,21 +175,30 @@ def train_k_fold(folds_path="Folds"):
             src_img = os.path.join(folds_path, other_fold, "images")
             src_lbl = os.path.join(folds_path, other_fold, "labels")
             
-            if os.path.exists(src_img) and os.path.isdir(src_img):
-                for img_file in os.listdir(src_img):
-                    if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                        src = os.path.join(src_img, img_file)
-                        dst = os.path.join(train_img_dir, img_file)
-                        if not os.path.exists(dst):
-                            shutil.copy2(src, dst)
-            
+            # Collect label stems from training set
+            train_label_stems = set()
             if os.path.exists(src_lbl) and os.path.isdir(src_lbl):
                 for lbl_file in os.listdir(src_lbl):
-                    if lbl_file.endswith('.txt'):
+                    if os.path.isfile(os.path.join(src_lbl, lbl_file)) and lbl_file.endswith('.txt'):
+                        stem = os.path.splitext(lbl_file)[0]
+                        train_label_stems.add(stem)
                         src = os.path.join(src_lbl, lbl_file)
                         dst = os.path.join(train_lbl_dir, lbl_file)
                         if not os.path.exists(dst):
                             shutil.copy2(src, dst)
+            
+            # Copy images that have matching labels (including empty/background)
+            if os.path.exists(src_img) and os.path.isdir(src_img):
+                for img_file in os.listdir(src_img):
+                    if os.path.isdir(os.path.join(src_img, img_file)):  # ← Skip directories
+                        continue
+                    if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        stem = os.path.splitext(img_file)[0]
+                        if stem in train_label_stems:  # Only copy if label exists (even if empty)
+                            src = os.path.join(src_img, img_file)
+                            dst = os.path.join(train_img_dir, img_file)
+                            if not os.path.exists(dst):
+                                shutil.copy2(src, dst)
         
         train_img_count = len([f for f in os.listdir(train_img_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         train_lbl_count = len([f for f in os.listdir(train_lbl_dir) if f.endswith('.txt')])
@@ -203,7 +222,7 @@ def train_k_fold(folds_path="Folds"):
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=os.path.join("models_normal_merger", fold),
+            model_dir=os.path.join("models_normal", fold),
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
@@ -215,7 +234,7 @@ def train_k_fold(folds_path="Folds"):
             data_yaml=yaml_path,
             model_info=model_info_json,
             training_start=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            model_dir=os.path.join("models_flips_merger", fold),
+            model_dir=os.path.join("models_flips", fold),
             weights="yolov5m.pt",
             img_size="768",
             batch_size="16",
@@ -230,5 +249,5 @@ def train_k_fold(folds_path="Folds"):
     print("="*60)
 
 if __name__ == '__main__':
-    run_k_fold("Castings", output_path="Folds_merger", k=4)
-    train_k_fold("Folds_merger")
+    run_k_fold("Castings", output_path="Folds", k=4)
+    train_k_fold("Folds")
