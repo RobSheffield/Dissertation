@@ -1,7 +1,11 @@
 import os
+import sys
 import shutil
 import yaml
 from collections import defaultdict
+
+# Add parent directory to path so imports work correctly
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data.format_converter import convert_gt_to_yolo
 from stages.train_model import train_yolo
