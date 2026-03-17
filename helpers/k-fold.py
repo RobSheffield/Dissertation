@@ -80,9 +80,11 @@ def run_k_fold(image_path, output_path, k=5):
                 for lbl_file in os.listdir(output_labels):
                     item_path = os.path.join(output_labels, lbl_file)
                     if os.path.isfile(item_path) and lbl_file.endswith('.txt'):
-                        dst_lbl = os.path.join(lbl_dir, lbl_file)
+                        # ADD folder prefix to match image naming
+                        prefixed_lbl_file = f"{folder}_{lbl_file}"  # ← C0015_0001.txt → C0015_C0015_0001.txt
+                        dst_lbl = os.path.join(lbl_dir, prefixed_lbl_file)
                         shutil.move(item_path, dst_lbl)
-                        stem = os.path.splitext(lbl_file)[0]
+                        stem = os.path.splitext(prefixed_lbl_file)[0]  # ← Use prefixed name
                         converted_stems.add(stem)
 
                 shutil.rmtree(output_labels)
