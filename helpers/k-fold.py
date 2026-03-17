@@ -4,6 +4,10 @@ import random
 import shutil
 import datetime
 import yaml
+import re
+import numpy as np
+from PIL import Image
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from stages.train_model import train_yolo
 
@@ -64,19 +68,22 @@ def run_k_fold(image_path, output_path, k=5):
 
             if gt_file:
                 # Convert labels first
-                temp_lbl_dir = os.path.join(fold_dir, "labels_temp")
-                os.makedirs(temp_lbl_dir, exist_ok=True)
-                convert_gt_to_yolo(gt_file, folder_path, temp_lbl_dir, class_id=0)
+                output_labels = os.path.join(fold_dir, "labels_temp")
+                os.makedirs(output_labels, exist_ok=True)
+                success = convert_gt_to_yolo(gt_file, folder_path, output_labels, class_id=0)
+                if not success:
+                    print(f"WARNING: No gt file found for {folder}, skipping entire folder.")
+                    continue
 
                 # Track which stems have labels
                 converted_stems = set()
-                for lbl_file in os.listdir(temp_lbl_dir):
-                    src_lbl = os.path.join(temp_lbl_dir, lbl_file)
+                for lbl_file in os.listdir(output_labels):
+                    src_lbl = os.path.join(output_labels, lbl_file)
                     dst_lbl = os.path.join(lbl_dir, f"{folder}_{lbl_file}")
                     shutil.move(src_lbl, dst_lbl)
                     converted_stems.add(os.path.splitext(lbl_file)[0])
 
-                shutil.rmtree(temp_lbl_dir)
+                shutil.rmtree(output_labels)
 
                 # Only copy images that have a matching label
                 for file in os.listdir(folder_path):
@@ -91,6 +98,7 @@ def run_k_fold(image_path, output_path, k=5):
                         print(f"  Skipped (no label): {file}")
             else:
                 print(f"WARNING: No gt file found for {folder}, skipping entire folder.")
+                continue
 
         print(f"  -> {len(os.listdir(img_dir))} images, {len(os.listdir(lbl_dir))} labels in {fold_name}")
 

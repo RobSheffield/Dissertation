@@ -17,25 +17,30 @@ def convert_gt_to_yolo(gt_file, images_dir, output_dir, class_id=0):
         output_dir (str): Directory to save YOLOv5 annotations.
         class_id (int): YOLO class ID to assign to all annotations (default is 0).
     """
+    # If no gt_file exists, skip the entire folder
+    if not os.path.exists(gt_file):
+        print(f"WARNING: No gt file found, skipping entire folder.")
+        return False
+    
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
     # Load ground truth data
     gt_data = np.loadtxt(gt_file)
     if gt_data.ndim == 1:
-        gt_data = gt_data.reshape(1, -1)  # Handle single annotation row
+        gt_data = gt_data.reshape(1, -1)
 
     # Iterate over all images in the directory
     image_files = [f for f in os.listdir(images_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
 
     for image_file in image_files:
-        # Extract image ID - find first numeric segment in filename
+        # Extract image ID
         name_no_ext = os.path.splitext(image_file)[0]
         numbers = re.findall(r'\d+', name_no_ext)
         if not numbers:
             print(f"Could not extract ID from {image_file}, skipping.")
             continue
-        image_id = int(numbers[-1])  # use last number in filename
+        image_id = int(numbers[-1])
         image_path = os.path.join(images_dir, image_file)
 
         # Get image dimensions
@@ -45,9 +50,13 @@ def convert_gt_to_yolo(gt_file, images_dir, output_dir, class_id=0):
         # Find ground truth annotations for the current image
         matches = gt_data[gt_data[:, 0] == image_id]
 
+        label_file = os.path.join(output_dir, os.path.splitext(image_file)[0] + ".txt")
+
         if len(matches) == 0:
-            # No annotation - skip entirely, do NOT create empty label
-            print(f"No ground truth for {image_file}, skipping.")
+            # No annotation in gt file = defect-free (create empty label file)
+            with open(label_file, 'w') as f:
+                f.write('')
+            print(f"No ground truth for {image_file}, marked as defect-free.")
             continue
 
         yolo_lines = []
@@ -60,12 +69,16 @@ def convert_gt_to_yolo(gt_file, images_dir, output_dir, class_id=0):
             yolo_lines.append(f"{class_id} {x_center:.6f} {y_center:.6f} {norm_width:.6f} {norm_height:.6f}")
 
         if yolo_lines:
-            label_file = os.path.join(output_dir, os.path.splitext(image_file)[0] + ".txt")
             with open(label_file, 'w') as f:
                 f.write('\n'.join(yolo_lines))
             print(f"Saved {len(yolo_lines)} annotations for {image_file}.")
         else:
-            print(f"WARNING: Empty annotations for {image_file}, skipping.")
+            # This shouldn't happen now, but handle edge case
+            with open(label_file, 'w') as f:
+                f.write('')
+            print(f"Empty annotations for {image_file}, marked as defect-free.")
+    
+    return True
 
 
 if __name__ == "__main__":
