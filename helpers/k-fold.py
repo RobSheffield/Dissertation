@@ -1,4 +1,5 @@
 import os
+from random import random, shuffle
 import sys
 import shutil
 import yaml
@@ -103,6 +104,52 @@ def create_folds(image_path, output_path, k=4):
 
         print(f"Built fold_{i+1}")
 
+def create_bias_folds(image_path, output_path, k=4):
+    '''k-fold where all images are shuffled together, ignoring folder structure. This is a more traditional k-fold but risks leakage if multiple images of the same defect are present.'''
+    all_images = []
+    for root, dirs, files in os.walk(image_path):
+        for file in files:
+            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                all_images.append(os.path.join(root, file))
+    shuffle(all_images)
+    folds = [all_images[i::k] for i in range(k)]
+    for i, fold in enumerate(folds):
+        fold_dir = os.path.join(output_path, f"fold_{i+1}")
+        img_dir = os.path.join(fold_dir, "images")
+        lbl_dir = os.path.join(fold_dir, "labels")
+
+        if os.path.exists(fold_dir):
+            shutil.rmtree(fold_dir)
+
+        os.makedirs(img_dir)
+        os.makedirs(lbl_dir)
+
+        for img_path in fold:
+            folder = os.path.basename(os.path.dirname(img_path))
+            img_name = os.path.basename(img_path)
+            stem = os.path.splitext(img_name)[0]
+
+            gt_file = os.path.join(os.path.dirname(img_path), "ground_truth.txt")
+            if not os.path.isfile(gt_file):
+                print(f"Skipping {img_path} (no GT)")
+                continue
+
+            temp_labels = os.path.join(fold_dir, "temp_labels")
+            os.makedirs(temp_labels, exist_ok=True)
+
+            convert_gt_to_yolo(gt_file, os.path.dirname(img_path), temp_labels, class_id=0)
+
+            lbl_src = os.path.join(temp_labels, f"{stem}.txt")
+            lbl_dst = os.path.join(lbl_dir, f"{folder}_{stem}.txt")
+
+            if os.path.exists(lbl_src):
+                shutil.move(lbl_src, lbl_dst)
+            else:
+                open(lbl_dst, 'w').close()
+
+            shutil.copy(img_path, os.path.join(img_dir, f"{folder}_{img_name}"))
+
+        print(f"Built fold_{i+1}")
 
 # --------------------------------------------------
 # STEP 2: BUILD TRAIN/VAL FOR EACH FOLD
@@ -165,7 +212,7 @@ def build_train_val_sets(folds_path):
 # STEP 3: TRAIN
 # --------------------------------------------------
 
-def train_all(folds_path):
+def train_all(folds_path,model_dir="models"):
     folds = sorted([f for f in os.listdir(folds_path) if f.startswith("fold_")])
 
     for fold in folds:
@@ -205,38 +252,15 @@ def train_all(folds_path):
             data_yaml=yaml_path,
             model_info=model_info_str,
             training_start=datetime.datetime.now().isoformat(),
-            model_dir=os.path.join("models", fold),
-            weights="yolo11n.pt",   # smaller model (better)
+            model_dir=os.path.join("models_folder_split", fold),
+            weights="yolov5mu.pt",   
             img_size="640",
             batch_size="16",
-            epochs="50"
+            epochs="250",
+            patience = "0"
         )
 
-                # Create proper model_info JSON
-        model_info_json = {
-            "name": fold+'_flips',
-            "model": "yolo11n",
-            "date_time_trained": datetime.datetime.now().isoformat(),
-            "total_training_time": 0,
-            "number_of_images": train_img_count
-        }
-
-        import json
-        model_info_str = json.dumps(model_info_json)
-
-
-        train_yolo(
-            data_yaml=yaml_path,
-            model_info=model_info_str,
-            training_start=datetime.datetime.now().isoformat(),
-            model_dir=os.path.join("models_flips", fold),
-            weights="yolo11n.pt",   # smaller model (better)
-            img_size="640",
-            batch_size="16",
-            epochs="50",
-            flips = True
-        )
-
+              
 
 # --------------------------------------------------
 # MAIN
@@ -245,4 +269,8 @@ def train_all(folds_path):
 if __name__ == "__main__":
     create_folds("Castings", "Folds", k=4)
     build_train_val_sets("Folds")
-    train_all("Folds")
+    train_all("Folds","unbiased_models")
+
+    create_bias_folds("Castings", "Bias_folds", k=4)
+    build_train_val_sets("Bias_folds")
+    train_all("Bias_folds","biased_models")
