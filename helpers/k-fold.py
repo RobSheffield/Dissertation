@@ -256,9 +256,8 @@ def train_all(folds_path,model_dir="models"):
             weights="yolov5mu.pt",   
             img_size="640",
             batch_size="16",
-            epochs="250",
-            patience = "0"
-        )
+            epochs="250"
+                )
 
               
 
@@ -267,10 +266,11 @@ def train_all(folds_path,model_dir="models"):
 # --------------------------------------------------
 
 if __name__ == "__main__":
-    create_folds("Castings", "Folds", k=4)
-    build_train_val_sets("Folds")
-    train_all("Folds","unbiased_models")
 
     create_bias_folds("Castings", "Bias_folds", k=4)
     build_train_val_sets("Bias_folds")
     train_all("Bias_folds","biased_models")
+    
+    create_folds("Castings", "Folds", k=4)
+    build_train_val_sets("Folds")
+    train_all("Folds","unbiased_models")
