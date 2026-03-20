@@ -17,7 +17,10 @@ from stages.train_model import train_yolo
 # STEP 1: CREATE FOLDS (FOLDER-LEVEL SPLIT)
 # --------------------------------------------------
 
-def create_folds(image_path, output_path, k=4):
+def create_folds(image_path, output_path, k=4,testSize = 0.2):
+
+
+
     folders = [f for f in os.listdir(image_path)
                if os.path.isdir(os.path.join(image_path, f))]
 
@@ -29,7 +32,41 @@ def create_folds(image_path, output_path, k=4):
                      if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         if count > 0:
             folder_counts.append((folder, count))
+    random.shuffle(folder_counts)
+    if testSize > 0:
+        test_set = folder_counts[:int(len(folder_counts)*testSize)]
+        folder_counts = folder_counts[int(len(folder_counts)*testSize):]
+        test_dir = os.path.join(output_path, "test")
+        os.makedirs(os.path.join(test_dir, "images"), exist_ok=True)
+        os.makedirs(os.path.join(test_dir, "labels"), exist_ok=True)
+        for folder, _ in test_set:
+            folder_path = os.path.join(image_path, folder)
+            gt_file = os.path.join(folder_path, "ground_truth.txt")
 
+            if not os.path.isfile(gt_file):
+                print(f"Skipping {folder} (no GT)")
+                continue
+
+            temp_labels = os.path.join(test_dir, "temp_labels")
+            os.makedirs(temp_labels, exist_ok=True)
+
+            convert_gt_to_yolo(gt_file, folder_path, temp_labels, class_id=0)
+
+            for lbl in os.listdir(temp_labels):
+                if lbl.endswith(".txt"):
+                    shutil.move(
+                        os.path.join(temp_labels, lbl),
+                        os.path.join(test_dir, "labels", f"{folder}_{lbl}")
+                    )
+
+            shutil.rmtree(temp_labels)
+
+            for img in os.listdir(folder_path):
+                if img.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    shutil.copy(
+                        os.path.join(folder_path, img),
+                        os.path.join(test_dir, "images", f"{folder}_{img}")
+                    )
     # Sort largest → smallest
     folder_counts.sort(key=lambda x: x[1], reverse=True)
 
@@ -252,7 +289,7 @@ def train_all(folds_path,model_dir="models"):
             data_yaml=yaml_path,
             model_info=model_info_str,
             training_start=datetime.datetime.now().isoformat(),
-            model_dir=os.path.join("models_folder_split", fold),
+            model_dir=os.path.join(model_dir, fold),
             weights="yolov5mu.pt",   
             img_size="640",
             batch_size="16",
@@ -270,7 +307,7 @@ if __name__ == "__main__":
     create_bias_folds("Castings", "Bias_folds", k=4)
     build_train_val_sets("Bias_folds")
     train_all("Bias_folds","biased_models")
-    
+
     create_folds("Castings", "Folds", k=4)
     build_train_val_sets("Folds")
     train_all("Folds","unbiased_models")
