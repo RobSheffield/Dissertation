@@ -304,9 +304,10 @@ def train_all(folds_path,model_dir="models"):
                                if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
 
         # Create proper model_info JSON
+        preweights = "yolov11n.pt"
         model_info_json = {
             "name": fold,
-            "model": "yolo5mu",
+            "model": preweights,
             "date_time_trained": datetime.datetime.now().isoformat(),
             "total_training_time": 0,
             "number_of_images": train_img_count
@@ -320,7 +321,7 @@ def train_all(folds_path,model_dir="models"):
             model_info=model_info_str,
             training_start=datetime.datetime.now().isoformat(),
             model_dir=os.path.join(model_dir, fold),
-            weights="yolov5mu.pt",   
+            weights=preweights,
             img_size="640",
             batch_size="16",
             epochs="100"
@@ -393,7 +394,7 @@ def mAP_on_test_set(test_dir, model_dir):
         metrics = model.val(
             data=yaml_path,
             split="test",
-            imgsz=640,
+            imgsz=1280,
             batch=16,
             verbose=False
         )
@@ -446,12 +447,12 @@ def mAP_on_test_set(test_dir, model_dir):
 
 if __name__ == "__main__":
 
-    create_bias_folds("Castings", "Bias_folds", k=4, testSize=0.2)
-    build_train_val_sets("Bias_folds")
-    train_all("Bias_folds","biased_models")
-    mAP_on_test_set("Bias_folds/test","biased_models")   
+    create_bias_folds("Castings", "Bias_folds_high_res", k=4, testSize=0.2)
+    build_train_val_sets("Bias_folds_high_res")
+    train_all("Bias_folds_high_res","biased_models_high_res")
+    mAP_on_test_set("Bias_folds_high_res/test","biased_models_high_res")   
 
-    create_folds("Castings", "Folds", k=4, testSize=0.2)
-    build_train_val_sets("Folds")
-    train_all("Folds","unbiased_models")
-    mAP_on_test_set("Folds/test","unbiased_models")
+    create_folds("Castings", "Folds_high_res", k=4, testSize=0.2)
+    build_train_val_sets("Folds_high_res")
+    train_all("Folds_high_res","unbiased_models_high_res")
+    mAP_on_test_set("Folds_high_res/test","unbiased_models_high_res")
