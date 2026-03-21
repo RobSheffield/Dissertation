@@ -304,7 +304,7 @@ def train_all(folds_path,model_dir="models"):
                                if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
 
         # Create proper model_info JSON
-        preweights = "yolov11n.pt"
+        preweights = "yolov5mu.pt"
         model_info_json = {
             "name": fold,
             "model": preweights,
@@ -447,12 +447,12 @@ def mAP_on_test_set(test_dir, model_dir):
 
 if __name__ == "__main__":
 
-    create_bias_folds("Castings", "Bias_folds_high_res", k=4, testSize=0.2)
-    build_train_val_sets("Bias_folds_high_res")
-    train_all("Bias_folds_high_res","biased_models_high_res")
-    mAP_on_test_set("Bias_folds_high_res/test","biased_models_high_res")   
+    create_bias_folds("Castings", "Bias_folds_high_res_v5", k=4, testSize=0.2)
+    build_train_val_sets("Bias_folds_high_res_v5")
+    train_all("Bias_folds_high_res_v5","biased_models_high_res_v5")
+    mAP_on_test_set("Bias_folds_high_res_v5/test","biased_models_high_res_v5")   
 
-    create_folds("Castings", "Folds_high_res", k=4, testSize=0.2)
-    build_train_val_sets("Folds_high_res")
-    train_all("Folds_high_res","unbiased_models_high_res")
-    mAP_on_test_set("Folds_high_res/test","unbiased_models_high_res")
+    create_folds("Castings", "Folds_high_res_v5", k=4, testSize=0.2)
+    build_train_val_sets("Folds_high_res_v5")
+    train_all("Folds_high_res_v5","unbiased_models_high_res_v5")
+    mAP_on_test_set("Folds_high_res_v5/test","unbiased_models_high_res_v5")
