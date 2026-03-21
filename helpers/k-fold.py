@@ -18,9 +18,8 @@ from stages.train_model import train_yolo
 # STEP 1: CREATE FOLDS (FOLDER-LEVEL SPLIT)
 # --------------------------------------------------
 
-def create_folds(image_path, output_path, k=4,testSize = 0.2):
-
-
+def create_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
+    rng = random.Random(seed)
 
     folders = [f for f in os.listdir(image_path)
                if os.path.isdir(os.path.join(image_path, f))]
@@ -33,23 +32,24 @@ def create_folds(image_path, output_path, k=4,testSize = 0.2):
                      if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         if count > 0:
             folder_counts.append((folder, count))
-    shuffle(folder_counts)
+    
+    rng.shuffle(folder_counts)
+    
     if testSize > 0:
         remaining_folders = build_test_set(image_path, output_path, testSize, folder_counts)
         folder_counts = [fc for fc in folder_counts if fc[0] in remaining_folders]
-    # Sort largest → smallest
-    folder_counts.sort(key=lambda x: x[1], reverse=True)
-
-    # Greedy balance
+    
+    # Randomly assign folders to folds (not greedy)
     folds = [[] for _ in range(k)]
     fold_sizes = [0] * k
-
+    
     for folder, count in folder_counts:
-        idx = fold_sizes.index(min(fold_sizes))
+        # Randomly pick a fold instead of greedy minimum
+        idx = rng.randint(0, k - 1)
         folds[idx].append(folder)
         fold_sizes[idx] += count
 
-    print(f"Fold sizes: {fold_sizes}")
+    print(f"Fold sizes (random assignment): {fold_sizes}")
 
     # Build fold directories
     for i, fold in enumerate(folds):
@@ -99,7 +99,7 @@ def create_folds(image_path, output_path, k=4,testSize = 0.2):
                 stem = os.path.splitext(img)[0]
 
                 # copy image
-                shutil.copy(
+                shutil.copy2(
                     os.path.join(folder_path, img),
                     os.path.join(img_dir, f"{folder}_{img}")
                 )
@@ -151,7 +151,7 @@ def build_test_set(image_path, output_path, testSize, folder_counts):
                     )
     return [f[0] for f in folder_counts]
 
-def create_bias_folds(image_path, output_path, k=4,testSize = 0.2):
+def create_bias_folds(image_path, output_path, k=4, testSize=0.2):
     '''k-fold where all images are shuffled together, ignoring folder structure. This is a more traditional k-fold but risks leakage if multiple images of the same defect are present.'''
 
     folders = [f for f in os.listdir(image_path)
@@ -214,7 +214,11 @@ def create_bias_folds(image_path, output_path, k=4,testSize = 0.2):
             else:
                 open(lbl_dst, 'w').close()
 
-            shutil.copy(img_path, os.path.join(img_dir, f"{folder}_{img_name}"))
+            # copy image
+            shutil.copy2(
+                os.path.join(folder_path, img),
+                os.path.join(img_dir, f"{folder}_{img_name}")
+            )
 
         print(f"Built fold_{i+1}")
 
@@ -279,7 +283,7 @@ def build_train_val_sets(folds_path):
 # STEP 3: TRAIN
 # --------------------------------------------------
 
-def train_all(folds_path,model_dir="models"):
+def train_all(folds_path, model_dir="models"):
     folds = sorted([f for f in os.listdir(folds_path) if f.startswith("fold_")])
 
     for fold in folds:
@@ -322,7 +326,7 @@ def train_all(folds_path,model_dir="models"):
             training_start=datetime.datetime.now().isoformat(),
             model_dir=os.path.join(model_dir, fold),
             weights=preweights,
-            img_size="640",
+            img_size="1280",
             batch_size="16",
             epochs="100"
                 )
@@ -447,12 +451,12 @@ def mAP_on_test_set(test_dir, model_dir):
 
 if __name__ == "__main__":
 
-    create_bias_folds("Castings", "Bias_folds_high_res_v11", k=4, testSize=0.2)
+    create_bias_folds("Castings", "Bias_folds_high_res_v11", k=3,testSize=0.2)
     build_train_val_sets("Bias_folds_high_res_v11")
     train_all("Bias_folds_high_res_v11","biased_models_high_res_v11")
     mAP_on_test_set("Bias_folds_high_res_v11/test","biased_models_high_res_v11")   
 
-    create_folds("Castings", "Folds_high_res_v11", k=4, testSize=0.2)
+    create_folds("Castings", "Folds_high_res_v11", k=3,estSize=0.2)
     build_train_val_sets("Folds_high_res_v11")
     train_all("Folds_high_res_v11","unbiased_models_high_res_v11")
     mAP_on_test_set("Folds_high_res_v11/test","unbiased_models_high_res_v11")
