@@ -306,7 +306,7 @@ def train_all(folds_path,model_dir="models"):
         # Create proper model_info JSON
         model_info_json = {
             "name": fold,
-            "model": "yolo11n",
+            "model": "yolo5mu",
             "date_time_trained": datetime.datetime.now().isoformat(),
             "total_training_time": 0,
             "number_of_images": train_img_count
@@ -323,7 +323,7 @@ def train_all(folds_path,model_dir="models"):
             weights="yolov5mu.pt",   
             img_size="640",
             batch_size="16",
-            epochs="250"
+            epochs="100"
                 )
 
 
