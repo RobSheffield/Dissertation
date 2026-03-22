@@ -10,9 +10,16 @@ from ultralytics import YOLO
 
 # Add parent directory to path so imports work correctly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 from data.format_converter import convert_gt_to_yolo
 from stages.train_model import train_yolo
+
+
+def _resolve_path(path_value):
+    if os.path.isabs(path_value):
+        return path_value
+    return os.path.abspath(os.path.join(PROJECT_ROOT, path_value))
 
 
 # --------------------------------------------------
@@ -20,6 +27,8 @@ from stages.train_model import train_yolo
 # --------------------------------------------------
 
 def create_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
+    image_path = _resolve_path(image_path)
+    output_path = _resolve_path(output_path)
     rng = random.Random(seed)
 
     folders = [f for f in os.listdir(image_path)
@@ -113,6 +122,8 @@ def create_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
         print(f"Built fold_{i+1}")
 
 def build_test_set(image_path, output_path, testSize, folder_counts):
+    image_path = _resolve_path(image_path)
+    output_path = _resolve_path(output_path)
     if testSize > 0:
         split_idx = int(len(folder_counts) * testSize)
         test_set = folder_counts[:split_idx]
@@ -154,6 +165,9 @@ def build_test_set(image_path, output_path, testSize, folder_counts):
 
 def create_bias_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
     '''k-fold where all images are shuffled together, ignoring folder structure. This is a more traditional k-fold but risks leakage if multiple images of the same defect are present.'''
+
+    image_path = _resolve_path(image_path)
+    output_path = _resolve_path(output_path)
 
     rng = random.Random(seed)
 
@@ -219,7 +233,7 @@ def create_bias_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
 
             # copy image
             shutil.copy2(
-                os.path.join(folder_path, img),
+                img_path,
                 os.path.join(img_dir, f"{folder}_{img_name}")
             )
 
@@ -230,6 +244,7 @@ def create_bias_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
 # --------------------------------------------------
 
 def build_train_val_sets(folds_path):
+    folds_path = _resolve_path(folds_path)
     folds = sorted([f for f in os.listdir(folds_path) if f.startswith("fold_")])
 
     for fold in folds:
@@ -287,6 +302,8 @@ def build_train_val_sets(folds_path):
 # --------------------------------------------------
 
 def train_all(folds_path, model_dir="models"):
+    folds_path = _resolve_path(folds_path)
+    model_dir = _resolve_path(model_dir)
     folds = sorted([f for f in os.listdir(folds_path) if f.startswith("fold_")])
 
     for fold in folds:
@@ -311,7 +328,8 @@ def train_all(folds_path, model_dir="models"):
                                if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
 
         # Create proper model_info JSON
-        preweights = "yolo11n.pt"
+        local_weights = _resolve_path("yolo11n.pt")
+        preweights = local_weights if os.path.isfile(local_weights) else "yolo11n.pt"
         model_info_json = {
             "name": fold,
             "model": preweights,
@@ -332,10 +350,13 @@ def train_all(folds_path, model_dir="models"):
             img_size="1280",
             batch_size="12",
             epochs="200",
+            workers="4"
                 )
 
 
 def mAP_on_test_set(test_dir, model_dir):
+    test_dir = _resolve_path(test_dir)
+    model_dir = _resolve_path(model_dir)
     images_dir = os.path.join(test_dir, "images")
     labels_dir = os.path.join(test_dir, "labels")
 
