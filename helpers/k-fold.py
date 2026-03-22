@@ -459,7 +459,7 @@ if __name__ == "__main__":
     train_all("Bias_folds_high_res_v11","biased_models_high_res_v11")
     mAP_on_test_set("Bias_folds_high_res_v11/test","biased_models_high_res_v11")   
 
-    create_folds("Castings", "Folds_high_res_v11", k=3,estSize=0.2)
+    create_folds("Castings", "Folds_high_res_v11", k=3,testSize=0.2)
     build_train_val_sets("Folds_high_res_v11")
     train_all("Folds_high_res_v11","unbiased_models_high_res_v11")
     mAP_on_test_set("Folds_high_res_v11/test","unbiased_models_high_res_v11")
