@@ -188,12 +188,35 @@ def create_bias_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
         remaining_folders = build_test_set(image_path, output_path, testSize, folder_counts)
 
     all_images = []
+    label_lookup = {}
+
+    label_cache_root = os.path.join(output_path, "_label_cache")
+    if os.path.exists(label_cache_root):
+        shutil.rmtree(label_cache_root)
+    os.makedirs(label_cache_root, exist_ok=True)
+
     for folder in remaining_folders:
         folder_path = os.path.join(image_path, folder)
-        if os.path.isdir(folder_path):
-            for img in os.listdir(folder_path):
-                if img.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    all_images.append(os.path.join(folder_path, img))
+        if not os.path.isdir(folder_path):
+            continue
+
+        gt_file = os.path.join(folder_path, "ground_truth.txt")
+        if not os.path.isfile(gt_file):
+            print(f"Skipping {folder} (no GT)")
+            continue
+
+        folder_cache = os.path.join(label_cache_root, folder)
+        os.makedirs(folder_cache, exist_ok=True)
+        convert_gt_to_yolo(gt_file, folder_path, folder_cache, class_id=0)
+
+        for label_name in os.listdir(folder_cache):
+            if label_name.endswith(".txt"):
+                stem = os.path.splitext(label_name)[0]
+                label_lookup[(folder, stem)] = os.path.join(folder_cache, label_name)
+
+        for img in os.listdir(folder_path):
+            if img.lower().endswith(('.png', '.jpg', '.jpeg')):
+                all_images.append(os.path.join(folder_path, img))
 
     rng.shuffle(all_images)
     folds = [all_images[i::k] for i in range(k)]
@@ -213,31 +236,22 @@ def create_bias_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
             img_name = os.path.basename(img_path)
             stem = os.path.splitext(img_name)[0]
 
-            gt_file = os.path.join(os.path.dirname(img_path), "ground_truth.txt")
-            if not os.path.isfile(gt_file):
-                print(f"Skipping {img_path} (no GT)")
-                continue
-
-            temp_labels = os.path.join(fold_dir, "temp_labels")
-            os.makedirs(temp_labels, exist_ok=True)
-
-            convert_gt_to_yolo(gt_file, os.path.dirname(img_path), temp_labels, class_id=0)
-
-            lbl_src = os.path.join(temp_labels, f"{stem}.txt")
             lbl_dst = os.path.join(lbl_dir, f"{folder}_{stem}.txt")
+            lbl_src = label_lookup.get((folder, stem))
 
-            if os.path.exists(lbl_src):
-                shutil.move(lbl_src, lbl_dst)
+            if lbl_src and os.path.isfile(lbl_src):
+                shutil.copy2(lbl_src, lbl_dst)
             else:
                 open(lbl_dst, 'w').close()
 
-            # copy image
             shutil.copy2(
                 img_path,
                 os.path.join(img_dir, f"{folder}_{img_name}")
             )
 
         print(f"Built fold_{i+1}")
+
+    shutil.rmtree(label_cache_root, ignore_errors=True)
 
 # --------------------------------------------------
 # STEP 2: BUILD TRAIN/VAL FOR EACH FOLD
