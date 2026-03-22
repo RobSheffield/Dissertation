@@ -1,4 +1,5 @@
 import os
+import random
 from random import shuffle
 import sys
 import shutil
@@ -151,8 +152,10 @@ def build_test_set(image_path, output_path, testSize, folder_counts):
                     )
     return [f[0] for f in folder_counts]
 
-def create_bias_folds(image_path, output_path, k=4, testSize=0.2):
+def create_bias_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
     '''k-fold where all images are shuffled together, ignoring folder structure. This is a more traditional k-fold but risks leakage if multiple images of the same defect are present.'''
+
+    rng = random.Random(seed)
 
     folders = [f for f in os.listdir(image_path)
                if os.path.isdir(os.path.join(image_path, f))]
@@ -165,7 +168,7 @@ def create_bias_folds(image_path, output_path, k=4, testSize=0.2):
         if count > 0:
             folder_counts.append((folder, count))
 
-    shuffle(folder_counts)
+    rng.shuffle(folder_counts)
     remaining_folders = [f[0] for f in folder_counts]
     if testSize > 0:
         remaining_folders = build_test_set(image_path, output_path, testSize, folder_counts)
@@ -178,7 +181,7 @@ def create_bias_folds(image_path, output_path, k=4, testSize=0.2):
                 if img.lower().endswith(('.png', '.jpg', '.jpeg')):
                     all_images.append(os.path.join(folder_path, img))
 
-    shuffle(all_images)
+    rng.shuffle(all_images)
     folds = [all_images[i::k] for i in range(k)]
     for i, fold in enumerate(folds):
         fold_dir = os.path.join(output_path, f"fold_{i+1}")
