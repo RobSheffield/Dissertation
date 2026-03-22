@@ -454,12 +454,12 @@ def mAP_on_test_set(test_dir, model_dir):
 
 if __name__ == "__main__":
 
-    create_bias_folds("Castings", "Bias_folds_high_res_v11", k=3,testSize=0.2)
-    build_train_val_sets("Bias_folds_high_res_v11")
-    train_all("Bias_folds_high_res_v11","biased_models_high_res_v11")
-    mAP_on_test_set("Bias_folds_high_res_v11/test","biased_models_high_res_v11")   
+    create_bias_folds("Castings", "bias_folds_high_res_v11_k8", k=8,testSize=0.2)
+    build_train_val_sets("bias_folds_high_res_v11_k8")
+    train_all("bias_folds_high_res_v11_k8","biased_models_high_res_v11_k8")
+    mAP_on_test_set("bias_folds_high_res_v11_k8/test","biased_models_high_res_v11_k8")   
 
-    create_folds("Castings", "Folds_high_res_v11", k=3,testSize=0.2)
-    build_train_val_sets("Folds_high_res_v11")
-    train_all("Folds_high_res_v11","unbiased_models_high_res_v11")
-    mAP_on_test_set("Folds_high_res_v11/test","unbiased_models_high_res_v11")
+    create_folds("Castings", "Folds_high_res_v11_k8", k=8,testSize=0.2)
+    build_train_val_sets("Folds_high_res_v11_k8")
+    train_all("Folds_high_res_v11_k8","unbiased_models_high_res_v11_k8")
+    mAP_on_test_set("Folds_high_res_v11_k8/test","unbiased_models_high_res_v11_k8")
