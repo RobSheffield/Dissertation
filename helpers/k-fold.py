@@ -327,8 +327,8 @@ def train_all(folds_path, model_dir="models"):
             model_dir=os.path.join(model_dir, fold),
             weights=preweights,
             img_size="1280",
-            batch_size="16",
-            epochs="250",
+            batch_size="12",
+            epochs="200",
                 )
 
 
