@@ -363,9 +363,7 @@ def train_all(folds_path, model_dir="models"):
             weights=preweights,
             img_size="1280",
             batch_size="12",
-            epochs="200",
-            workers="4"
-                )
+            epochs="200")
 
 
 def mAP_on_test_set(test_dir, model_dir):
