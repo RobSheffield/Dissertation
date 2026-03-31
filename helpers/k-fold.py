@@ -4,6 +4,7 @@ from random import shuffle
 import sys
 import shutil
 import yaml
+import cv2
 from collections import defaultdict
 import datetime
 from ultralytics import YOLO
@@ -257,7 +258,102 @@ def create_bias_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
 # STEP 2: BUILD TRAIN/VAL FOR EACH FOLD
 # --------------------------------------------------
 
-def build_train_val_sets(folds_path):
+IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg')
+
+
+def _is_image_file(filename):
+    return filename.lower().endswith(IMAGE_EXTENSIONS)
+
+
+def _clear_directory(directory_path):
+    if not os.path.isdir(directory_path):
+        return
+
+    for name in os.listdir(directory_path):
+        path = os.path.join(directory_path, name)
+        if os.path.isfile(path):
+            os.remove(path)
+
+
+def _parse_yolo_labels(label_path):
+    if not os.path.isfile(label_path):
+        return []
+
+    boxes = []
+    with open(label_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            parts = line.strip().split()
+            if len(parts) != 5:
+                continue
+
+            class_id = int(float(parts[0]))
+            x, y, w, h = map(float, parts[1:])
+            boxes.append([class_id, x, y, w, h])
+
+    return boxes
+
+
+def _write_yolo_labels(label_path, boxes):
+    with open(label_path, 'w', encoding='utf-8') as f:
+        for class_id, x, y, w, h in boxes:
+            f.write(f"{class_id} {x:.6f} {y:.6f} {w:.6f} {h:.6f}\n")
+
+
+def _clamp01(value):
+    return max(0.0, min(1.0, value))
+
+
+def _transform_box(box, transform_name):
+    class_id, x, y, w, h = box
+
+    if transform_name == 'vflip':
+        nx, ny, nw, nh = x, 1.0 - y, w, h
+    elif transform_name == 'hflip':
+        nx, ny, nw, nh = 1.0 - x, y, w, h
+    elif transform_name == 'rot90':
+        nx, ny, nw, nh = 1.0 - y, x, h, w
+    elif transform_name == 'rot180':
+        nx, ny, nw, nh = 1.0 - x, 1.0 - y, w, h
+    elif transform_name == 'rot270':
+        nx, ny, nw, nh = y, 1.0 - x, h, w
+    else:
+        nx, ny, nw, nh = x, y, w, h
+
+    return [class_id, _clamp01(nx), _clamp01(ny), _clamp01(nw), _clamp01(nh)]
+
+
+def _augment_training_set_with_flips_and_rotations(train_img_dir, train_lbl_dir):
+    transforms = {
+        'vflip': lambda img: cv2.flip(img, 0),
+        'hflip': lambda img: cv2.flip(img, 1),
+        'rot90': lambda img: cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE),
+        'rot180': lambda img: cv2.rotate(img, cv2.ROTATE_180),
+        'rot270': lambda img: cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE),
+    }
+
+    source_images = [f for f in os.listdir(train_img_dir) if _is_image_file(f)]
+
+    for image_name in source_images:
+        image_path = os.path.join(train_img_dir, image_name)
+        image = cv2.imread(image_path)
+        if image is None:
+            continue
+
+        stem, ext = os.path.splitext(image_name)
+        source_label_path = os.path.join(train_lbl_dir, f"{stem}.txt")
+        source_boxes = _parse_yolo_labels(source_label_path)
+
+        for suffix, transform_fn in transforms.items():
+            transformed_image = transform_fn(image)
+            transformed_boxes = [_transform_box(box, suffix) for box in source_boxes]
+
+            aug_image_path = os.path.join(train_img_dir, f"{stem}_{suffix}{ext}")
+            aug_label_path = os.path.join(train_lbl_dir, f"{stem}_{suffix}.txt")
+
+            cv2.imwrite(aug_image_path, transformed_image)
+            _write_yolo_labels(aug_label_path, transformed_boxes)
+
+def build_train_val_sets(folds_path, apply_training_augmentations=False):
     folds_path = _resolve_path(folds_path)
     folds = sorted([f for f in os.listdir(folds_path) if f.startswith("fold_")])
 
@@ -273,6 +369,12 @@ def build_train_val_sets(folds_path):
 
         for d in [train_img, val_img, train_lbl, val_lbl]:
             os.makedirs(d, exist_ok=True)
+
+        # Keep repeated runs deterministic and avoid stale augmentation files.
+        _clear_directory(train_img)
+        _clear_directory(val_img)
+        _clear_directory(train_lbl)
+        _clear_directory(val_lbl)
 
         # -----------------------
         # VALIDATION = this fold
@@ -307,6 +409,9 @@ def build_train_val_sets(folds_path):
             for f in os.listdir(o_lbl):
                 if os.path.isfile(os.path.join(o_lbl, f)):
                     shutil.copy2(os.path.join(o_lbl, f), os.path.join(train_lbl, f))
+
+        if apply_training_augmentations:
+            _augment_training_set_with_flips_and_rotations(train_img, train_lbl)
 
         print(f"✓ {fold} ready")
 
@@ -486,13 +591,7 @@ def mAP_on_test_set(test_dir, model_dir):
 # --------------------------------------------------
 
 if __name__ == "__main__":
-
-    create_bias_folds("Castings", "bias_folds_high_res_v11_k4_path_fix", k=4,testSize=0.2)
-    build_train_val_sets("bias_folds_high_res_v11_k4_path_fix")
-    train_all("bias_folds_high_res_v11_k4_path_fix","biased_models_high_res_v11_k4_path_fix")
-    mAP_on_test_set("bias_folds_high_res_v11_k4_path_fix/test","biased_models_high_res_v11_k4_path_fix")   
-
-    create_folds("Castings", "Folds_high_res_v11_k4_path_fix", k=4,testSize=0.2)
-    build_train_val_sets("Folds_high_res_v11_k4_path_fix")
+    create_folds("Castings", "Folds_high_res_v11_k4_path_fix", k=4,testSize=0.2, seed=42)
+    build_train_val_sets("Folds_high_res_v11_k4_path_fix", apply_training_augmentations=True)
     train_all("Folds_high_res_v11_k4_path_fix","unbiased_models_high_res_v11_k4_path_fix")
     mAP_on_test_set("Folds_high_res_v11_k4_path_fix/test","unbiased_models_high_res_v11_k4_path_fix")
