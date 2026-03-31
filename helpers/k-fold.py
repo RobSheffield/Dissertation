@@ -591,7 +591,6 @@ def mAP_on_test_set(test_dir, model_dir):
 # --------------------------------------------------
 
 if __name__ == "__main__":
-    create_folds("Castings", "Folds_high_res_v11_k4_reg", k=4,testSize=0, seed=42)
-    build_train_val_sets("Folds_high_res_v11_k4_reg", apply_training_augmentations=False)
-    train_all("Folds_high_res_v11_k4_reg","unbiased_models_high_res_v11_k4_reg")
-    mAP_on_test_set("Folds_high_res_v11_k4_reg/test","unbiased_models_high_res_v11_k4_reg")
+    create_folds("Castings", "Folds_high_res_v11_k4_all", k=4,testSize=0, seed=42)
+    build_train_val_sets("Folds_high_res_v11_k4_all", apply_training_augmentations=True)
+    train_all("Folds_high_res_v11_k4_all","unbiased_models_high_res_v11_k4_all")
