@@ -54,7 +54,7 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
             epochs=int(epochs),
             cache=True,
             device=device,
-            fliplr = 0.0,
+            fliplr = 0.5,
             workers = 2,
             flipud=0)
     else:

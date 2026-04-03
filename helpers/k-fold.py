@@ -50,17 +50,21 @@ def create_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
         remaining_folders = build_test_set(image_path, output_path, testSize, folder_counts)
         folder_counts = [fc for fc in folder_counts if fc[0] in remaining_folders]
     
-    # Randomly assign folders to folds (not greedy)
+
+    # Sort folders by descending size (important!)
+    folder_counts.sort(key=lambda x: x[1], reverse=True)
+
     folds = [[] for _ in range(k)]
     fold_sizes = [0] * k
-    
+
     for folder, count in folder_counts:
-        # Randomly pick a fold instead of greedy minimum
-        idx = rng.randint(0, k - 1)
+        # Find the fold with the smallest current size
+        idx = fold_sizes.index(min(fold_sizes))
+        
         folds[idx].append(folder)
         fold_sizes[idx] += count
 
-    print(f"Fold sizes (random assignment): {fold_sizes}")
+    print(f"Fold sizes (greedy assignment): {fold_sizes}")
 
     # Build fold directories
     for i, fold in enumerate(folds):
@@ -163,9 +167,9 @@ def build_test_set(image_path, output_path, testSize, folder_counts):
                         os.path.join(test_dir, "images", f"{folder}_{img}")
                     )
     return [f[0] for f in folder_counts]
-
+'''
 def create_bias_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
-    '''k-fold where all images are shuffled together, ignoring folder structure. This is a more traditional k-fold but risks leakage if multiple images of the same defect are present.'''
+    k-fold where all images are shuffled together, ignoring folder structure. This is a more traditional k-fold but risks leakage if multiple images of the same defect are present.
 
     image_path = _resolve_path(image_path)
     output_path = _resolve_path(output_path)
@@ -253,7 +257,7 @@ def create_bias_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
         print(f"Built fold_{i+1}")
 
     shutil.rmtree(label_cache_root, ignore_errors=True)
-
+'''
 # --------------------------------------------------
 # STEP 2: BUILD TRAIN/VAL FOR EACH FOLD
 # --------------------------------------------------
@@ -468,7 +472,7 @@ def train_all(folds_path, model_dir="models"):
             weights=preweights,
             img_size="1280",
             batch_size="12",
-            epochs="200")
+            epochs="150")
 
 
 def mAP_on_test_set(test_dir, model_dir):
@@ -591,6 +595,9 @@ def mAP_on_test_set(test_dir, model_dir):
 # --------------------------------------------------
 
 if __name__ == "__main__":
-    create_folds("Castings", "Folds_high_res_v11_k4_all", k=4,testSize=0, seed=42)
-    build_train_val_sets("Folds_high_res_v11_k4_all", apply_training_augmentations=True)
-    train_all("Folds_high_res_v11_k4_all","unbiased_models_high_res_v11_k4_all")
+    create_folds("Castings", "Folds_high_res_v11_k5", k=5,testSize=0, seed=42)
+    build_train_val_sets("Folds_high_res_v11_k5", apply_training_augmentations=False)
+    train_all("Folds_high_res_v11_k5","models_high_res_v11_k5")
+    create_folds("Castings", "Folds_high_res_v11_k10", k=10, testSize=0, seed=42)
+    build_train_val_sets("Folds_high_res_v11_k10", apply_training_augmentations=False)
+    train_all("Folds_high_res_v11_k10","models_high_res_v11_k10")
