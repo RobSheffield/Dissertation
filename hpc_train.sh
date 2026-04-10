@@ -4,7 +4,7 @@
 #SBATCH --error=training_bias2_%j.err
 #SBATCH --time=30:00:00
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:4
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 module load Python/3.11.3-GCCcore-12.3.0
@@ -21,6 +21,11 @@ source .venv/bin/activate
 
 
 #source /users/acb22re/CopiedDissertation/take2/X-Ray_Image_Analysis/.venv/bin/activate
+
+# Ultralytics accepts device strings like "0" or "0,1".
+# Override at submit time if needed, e.g.:
+#   sbatch --export=ALL,K_FOLD_DEVICE=0,1 hpc_train.sh
+export K_FOLD_DEVICE=${K_FOLD_DEVICE:-0,1,2,3}
 
 python helpers/k_fold_leakage_test.py
 echo "Training completed!"

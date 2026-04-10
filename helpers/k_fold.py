@@ -423,7 +423,7 @@ def build_train_val_sets(folds_path, apply_training_augmentations=False):
 # STEP 3: TRAIN
 # --------------------------------------------------
 
-def train_all(folds_path, model_dir="models"):
+def train_all(folds_path, model_dir="models", device="auto"):
     folds_path = _resolve_path(folds_path)
     model_dir = _resolve_path(model_dir)
     folds = sorted([f for f in os.listdir(folds_path) if f.startswith("fold_")])
@@ -471,7 +471,8 @@ def train_all(folds_path, model_dir="models"):
             weights=preweights,
             img_size="1280",
             batch_size="12",
-            epochs="150")
+            epochs="150",
+            device=device)
 
 
 def mAP_on_test_set(test_dir, model_dir):

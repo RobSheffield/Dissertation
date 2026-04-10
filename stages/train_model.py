@@ -12,8 +12,19 @@ from data_classes.model_info import ModelInfo
 from helpers import file_helpers
 
 
+def _resolve_device(device):
+    if device is None:
+        return 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    device_str = str(device).strip()
+    if device_str.lower() == "auto":
+        return 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    return device_str
+
+
 def train_yolo(data_yaml, model_info, training_start, model_dir,
-               weights="yolov5m.pt", img_size="640", batch_size="16", epochs="50", flips = False):
+               weights="yolov5m.pt", img_size="640", batch_size="16", epochs="50", device="auto"):
     """
     Train a YOLOv5 model with the specified parameters.
 
@@ -37,37 +48,26 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
     # Build the path to the target file inside the parent directory
     runs_dir = os.path.join(parent_dir, "runs", "detect")
 
-    # Check if CUDA (GPU) is available and set the device
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f"Training on {device.upper()}...")
+    # Accept Ultralytics device strings, e.g. "0", "0,1", "cpu".
+    resolved_device = _resolve_device(device)
+    print(f"Training on device: {resolved_device}")
 
     model = YOLO(weights)
 
     # Train the model
     print("data_yaml:", data_yaml+" | model_dir: "+model_dir+" | weights: "+weights+" | img_size: "+img_size+" | batch_size: "+batch_size+" | epochs: "+epochs)
 
-    if not flips:
-        results = model.train(
-            data=data_yaml,
-            imgsz=int(img_size),
-            batch=int(batch_size),
-            epochs=int(epochs),
-            cache=True,
-            device=device,
-            fliplr = 0.5,
-            workers = 2,
-            flipud=0)
-    else:
-        results = model.train(
-            data=data_yaml,
-            imgsz = int(img_size),
-            batch = int(batch_size),
-            epochs = int(epochs),
-            cache = True,
-            device = device,
-            workers = 2,
-            fliplr = 0.5,
-            flipud = 1)
+    results = model.train(
+        data=data_yaml,
+        imgsz=int(img_size),
+        batch=int(batch_size),
+        epochs=int(epochs),
+        cache=True,
+        device=resolved_device,
+        fliplr = 0.5,
+        workers = 2,
+        flipud=0)
+
 
     save_dir = results.save_dir
 
@@ -122,6 +122,7 @@ if __name__ == "__main__":
     parser.add_argument("--img_size", type=str, default="640")
     parser.add_argument("--batch_size", type=str, default="16")
     parser.add_argument("--epochs", type=str, default="50")
+    parser.add_argument("--device", type=str, default="auto")
 
     # Parse arguments
     args = parser.parse_args()
@@ -135,5 +136,6 @@ if __name__ == "__main__":
         weights=args.weights,
         img_size=args.img_size,
         batch_size=args.batch_size,
-        epochs=args.epochs
+        epochs=args.epochs,
+        device=args.device
     )
