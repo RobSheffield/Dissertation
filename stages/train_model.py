@@ -14,11 +14,11 @@ from helpers import file_helpers
 
 def _resolve_device(device):
     if device is None:
-        return 'cuda' if torch.cuda.is_available() else 'cpu'
+        return '0' if torch.cuda.is_available() else 'cpu'
 
     device_str = str(device).strip()
     if device_str.lower() == "auto":
-        return 'cuda' if torch.cuda.is_available() else 'cpu'
+        return '0' if torch.cuda.is_available() else 'cpu'
 
     return device_str
 
@@ -68,8 +68,26 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
         flipud = 0 if not flips else 0.5,
         workers = 2)
 
+    save_dir = None
 
-    save_dir = results.save_dir
+    # Ultralytics may return None in some execution modes while still creating trainer artifacts.
+    if results is not None and hasattr(results, "save_dir"):
+        save_dir = results.save_dir
+
+    if save_dir is None and hasattr(model, "trainer") and model.trainer is not None:
+        save_dir = getattr(model.trainer, "save_dir", None)
+
+    if save_dir is None:
+        raise RuntimeError(
+            "Training finished without a result directory. "
+            "Try setting K_FOLD_DEVICE to a concrete device like '0' or 'cpu', "
+            "and check Ultralytics logs for earlier training errors."
+        )
+
+    save_dir = str(save_dir)
+
+    if not os.path.isdir(save_dir):
+        raise RuntimeError(f"Training output directory does not exist: {save_dir}")
 
     print(f"Saving model artifacts in: {model_dir}")
 
