@@ -2,7 +2,7 @@
 #SBATCH --job-name=K-flips_test
 #SBATCH --output=training_bias2_%j.log
 #SBATCH --error=training_bias2_%j.err
-#SBATCH --time=30:00:00
+#SBATCH --time=10:00:00
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:4
 #SBATCH --mem=32G
