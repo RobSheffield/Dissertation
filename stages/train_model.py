@@ -24,7 +24,7 @@ def _resolve_device(device):
 
 
 def train_yolo(data_yaml, model_info, training_start, model_dir,
-               weights="yolov5m.pt", img_size="640", batch_size="16", epochs="50", device="auto"):
+               weights="yolov5m.pt", img_size="640", batch_size="16", epochs="50", device="auto",flips=False):
     """
     Train a YOLOv5 model with the specified parameters.
 
@@ -65,8 +65,8 @@ def train_yolo(data_yaml, model_info, training_start, model_dir,
         cache=True,
         device=resolved_device,
         fliplr = 0.5,
-        workers = 2,
-        flipud=0)
+        flipud = 0 if not flips else 0.5,
+        workers = 2)
 
 
     save_dir = results.save_dir
