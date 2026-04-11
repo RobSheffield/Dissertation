@@ -51,20 +51,48 @@ def create_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
         folder_counts = [fc for fc in folder_counts if fc[0] in remaining_folders]
     
 
-    # Sort folders by descending size (important!)
-    folder_counts.sort(key=lambda x: x[1], reverse=True)
+    # Deterministic largest-first assignment, then local swaps to tighten balance.
+    folder_counts.sort(key=lambda x: (-x[1], x[0]))
 
     folds = [[] for _ in range(k)]
     fold_sizes = [0] * k
 
+    # First pass: LPT-style greedy assignment.
     for folder, count in folder_counts:
-        # Find the fold with the smallest current size
-        idx = fold_sizes.index(min(fold_sizes))
-        
-        folds[idx].append(folder)
+        idx = min(range(k), key=lambda i: (fold_sizes[i], len(folds[i]), i))
+        folds[idx].append((folder, count))
         fold_sizes[idx] += count
 
-    print(f"Fold sizes (greedy assignment): {fold_sizes}")
+    # Second pass: swap one folder between two folds when it improves max-min spread.
+    def _score(sizes):
+        return (max(sizes) - min(sizes), max(sizes))
+
+    improved = True
+    max_passes = 200
+    passes = 0
+    while improved and passes < max_passes:
+        improved = False
+        passes += 1
+        current_score = _score(fold_sizes)
+
+        for a in range(k):
+            for b in range(a + 1, k):
+                for ia, (_, ca) in enumerate(folds[a]):
+                    for ib, (_, cb) in enumerate(folds[b]):
+                        new_sizes = fold_sizes[:]
+                        new_sizes[a] = new_sizes[a] - ca + cb
+                        new_sizes[b] = new_sizes[b] - cb + ca
+
+                        if _score(new_sizes) < current_score:
+                            folds[a][ia], folds[b][ib] = folds[b][ib], folds[a][ia]
+                            fold_sizes[:] = new_sizes
+                            current_score = _score(fold_sizes)
+                            improved = True
+
+    # Convert back to folder-name-only lists for downstream processing.
+    folds = [[name for name, _ in fold] for fold in folds]
+
+    print(f"Fold sizes (balanced assignment): {fold_sizes}")
 
     # Build fold directories
     for i, fold in enumerate(folds):
