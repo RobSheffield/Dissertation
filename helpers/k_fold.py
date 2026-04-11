@@ -8,7 +8,7 @@ import cv2
 from collections import defaultdict
 import datetime
 from ultralytics import YOLO
-
+import heapq
 # Add parent directory to path so imports work correctly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -26,6 +26,39 @@ def _resolve_path(path_value):
 # --------------------------------------------------
 # STEP 1: CREATE FOLDS (FOLDER-LEVEL SPLIT)
 # --------------------------------------------------
+
+
+def balanced_split(folders, counts, k, seed=42):
+    """
+    Near-optimal k-way balancing using LPT + heap.
+
+    folders: list[str]
+    counts:  list[int]
+    returns: list[list[str]]
+    """
+    rng = random.Random(seed)
+
+    items = list(zip(folders, counts))
+    rng.shuffle(items)  # break ties
+
+    # Sort largest first (LPT heuristic)
+    items.sort(key=lambda x: -x[1])
+
+    # Min-heap of (current_fold_size, fold_index)
+    heap = [(0, i) for i in range(k)]
+    heapq.heapify(heap)
+
+    folds = [[] for _ in range(k)]
+    fold_sizes = [0] * k
+
+    for folder, count in items:
+        size, i = heapq.heappop(heap)
+        folds[i].append(folder)
+        fold_sizes[i] += count
+        heapq.heappush(heap, (fold_sizes[i], i))
+
+    return folds, fold_sizes
+
 
 def create_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
     image_path = _resolve_path(image_path)
@@ -51,47 +84,17 @@ def create_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
         folder_counts = [fc for fc in folder_counts if fc[0] in remaining_folders]
     
 
-    # Deterministic largest-first assignment, then local swaps to tighten balance.
-    folder_counts.sort(key=lambda x: (-x[1], x[0]))
+    if not folder_counts:
+        raise ValueError("No folders with images found for fold creation.")
 
-    folds = [[] for _ in range(k)]
-    fold_sizes = [0] * k
+    if k > len(folder_counts):
+        raise ValueError(
+            f"Requested k={k} folds but only {len(folder_counts)} non-empty folders are available."
+        )
 
-    # First pass: LPT-style greedy assignment.
-    for folder, count in folder_counts:
-        idx = min(range(k), key=lambda i: (fold_sizes[i], len(folds[i]), i))
-        folds[idx].append((folder, count))
-        fold_sizes[idx] += count
-
-    # Second pass: swap one folder between two folds when it improves max-min spread.
-    def _score(sizes):
-        return (max(sizes) - min(sizes), max(sizes))
-
-    improved = True
-    max_passes = 200
-    passes = 0
-    while improved and passes < max_passes:
-        improved = False
-        passes += 1
-        current_score = _score(fold_sizes)
-
-        for a in range(k):
-            for b in range(a + 1, k):
-                for ia, (_, ca) in enumerate(folds[a]):
-                    for ib, (_, cb) in enumerate(folds[b]):
-                        new_sizes = fold_sizes[:]
-                        new_sizes[a] = new_sizes[a] - ca + cb
-                        new_sizes[b] = new_sizes[b] - cb + ca
-
-                        if _score(new_sizes) < current_score:
-                            folds[a][ia], folds[b][ib] = folds[b][ib], folds[a][ia]
-                            fold_sizes[:] = new_sizes
-                            current_score = _score(fold_sizes)
-                            improved = True
-
-    # Convert back to folder-name-only lists for downstream processing.
-    folds = [[name for name, _ in fold] for fold in folds]
-
+    folders_only = [folder for folder, _ in folder_counts]
+    counts_only = [count for _, count in folder_counts]
+    folds, fold_sizes = balanced_split(folders_only, counts_only, k, seed=seed)
     print(f"Fold sizes (balanced assignment): {fold_sizes}")
 
     # Build fold directories
