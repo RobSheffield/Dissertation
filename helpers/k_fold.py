@@ -68,10 +68,14 @@ def create_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
     folders = [f for f in os.listdir(image_path)
                if os.path.isdir(os.path.join(image_path, f))]
 
-    # Count images per folder
+    # Count images per folder, but only for folders with GT so fold assignment
+    # matches the later copy logic.
     folder_counts = []
     for folder in folders:
         path = os.path.join(image_path, folder)
+        gt_file = os.path.join(path, "ground_truth.txt")
+        if not os.path.isfile(gt_file):
+            continue
         count = len([f for f in os.listdir(path)
                      if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         if count > 0:
@@ -416,13 +420,32 @@ def build_train_val_sets(folds_path, apply_training_augmentations=False):
         src_img = os.path.join(fold_dir, "images")
         src_lbl = os.path.join(fold_dir, "labels")
 
+        val_image_count = 0
+        val_label_count = 0
+
         for f in os.listdir(src_img):
             if os.path.isfile(os.path.join(src_img, f)):
                 shutil.copy2(os.path.join(src_img, f), os.path.join(val_img, f))
+                if _is_image_file(f):
+                    val_image_count += 1
 
         for f in os.listdir(src_lbl):
             if os.path.isfile(os.path.join(src_lbl, f)):
                 shutil.copy2(os.path.join(src_lbl, f), os.path.join(val_lbl, f))
+                if f.lower().endswith('.txt'):
+                    val_label_count += 1
+
+        if val_image_count == 0:
+            raise RuntimeError(
+                f"Fold '{fold}' has 0 validation images after split. "
+                f"Check source fold data at '{src_img}' and ground_truth availability in Castings."
+            )
+
+        if val_label_count == 0:
+            raise RuntimeError(
+                f"Fold '{fold}' has 0 validation labels after split. "
+                f"Check source fold labels at '{src_lbl}' and ground_truth conversion."
+            )
 
         # -----------------------
         # TRAIN = all OTHER folds
@@ -443,6 +466,21 @@ def build_train_val_sets(folds_path, apply_training_augmentations=False):
             for f in os.listdir(o_lbl):
                 if os.path.isfile(os.path.join(o_lbl, f)):
                     shutil.copy2(os.path.join(o_lbl, f), os.path.join(train_lbl, f))
+
+        train_image_count = len([f for f in os.listdir(train_img) if _is_image_file(f)])
+        train_label_count = len([f for f in os.listdir(train_lbl) if f.lower().endswith('.txt')])
+
+        if train_image_count == 0:
+            raise RuntimeError(
+                f"Fold '{fold}' has 0 training images after aggregating other folds. "
+                f"Check folds under '{folds_path}'."
+            )
+
+        if train_label_count == 0:
+            raise RuntimeError(
+                f"Fold '{fold}' has 0 training labels after aggregating other folds. "
+                f"Check fold label generation before train/val split."
+            )
 
         if apply_training_augmentations:
             _augment_training_set_with_flips_and_rotations(train_img, train_lbl)

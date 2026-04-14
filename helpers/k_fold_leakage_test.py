@@ -3,7 +3,7 @@ import k_fold
 
 
 if __name__ == "__main__":
-    k=10
+    k=5
     device = os.getenv("K_FOLD_DEVICE", "auto")
     '''    k_fold.create_bias_folds("Castings", "Bias_folds", k, testSize=0.1,seed=42)
     k_fold.build_train_val_sets("Bias_folds")
