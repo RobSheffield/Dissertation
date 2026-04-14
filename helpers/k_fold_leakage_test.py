@@ -13,3 +13,11 @@ if __name__ == "__main__":
     k_fold.build_train_val_sets("Folds_strat_5")
     k_fold.train_all("Folds_strat_5", "strat_5_unbiased_models", device=device)
     k_fold.mAP_on_test_set("Folds_strat_5/test", "strat_5_unbiased_models")
+    k_fold.create_folds("Castings", "Folds_strat_5_no_test", k=k, testSize=0, seed=42)
+    k_fold.build_train_val_sets("Folds_strat_5_no_test")
+    k_fold.train_all("Folds_strat_5_no_test", "strat_5_unbiased_models", device=device)
+    k=10
+    k_fold.create_folds("Castings", "Folds_strat_10", k=k, testSize=0.2, seed=42)
+    k_fold.build_train_val_sets("Folds_strat_10")
+    k_fold.train_all("Folds_strat_10", "strat_10_unbiased_models", device=device)
+    k_fold.mAP_on_test_set("Folds_strat_10/test", "strat_10_unbiased_models")
