@@ -14,7 +14,6 @@ from data.format_converter import convert_gt_to_yolo
 import run_SADL
 from stages import train_model
 from stages.model_training import create_yaml
-from helpers import k_fold
 from map_eval import evaluate_map50_on_image_subset
 from ultralytics import YOLO
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
