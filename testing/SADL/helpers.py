@@ -3,6 +3,10 @@ import torch
 
 
 def _resolve_core_model(model):
+	# Keep full nn.Module models intact (e.g., Ultralytics DetectionModel),
+	# otherwise route through wrapper.model when present.
+	if isinstance(model, torch.nn.Module):
+		return model
 	return model.model if hasattr(model, "model") else model
 
 
@@ -60,6 +64,11 @@ def get_ats(model, data_loader, device, layer_specs=None):
 	core_model = _resolve_core_model(model).to(device)
 	core_model.eval()
 
+	model_dtype = None
+	for p in core_model.parameters():
+		model_dtype = p.dtype
+		break
+
 	handles, activations, hook_keys = hook_layer(core_model, layer_specs=layer_specs)
 
 	at_list = []
@@ -72,7 +81,10 @@ def get_ats(model, data_loader, device, layer_specs=None):
 			else:
 				inputs = batch["img"] if "img" in batch else batch["images"]
 
-			inputs = inputs.to(device, non_blocking=True)
+			if model_dtype is not None and inputs.is_floating_point():
+				inputs = inputs.to(device=device, dtype=model_dtype, non_blocking=True)
+			else:
+				inputs = inputs.to(device, non_blocking=True)
 			_ = core_model(inputs)
 
 			batch_at = torch.cat(
