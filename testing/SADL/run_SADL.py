@@ -156,10 +156,10 @@ def score_folder(image_paths, values):
 if __name__ == "__main__":
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     model_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "testing","final_datas","strat_10_unbiased_models", "fold_1", "weights", "best.pt")
+        os.path.join(os.path.dirname(__file__), "..", "..", "strat_10_unbiased_models", "fold_1", "weights", "best.pt")
     )
-    train_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","images", "train")
-    val_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","images", "val")
-    train_labels_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","labels", "train")
-    val_labels_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","labels", "val")
+    train_path = os.path.join(project_root,  "Folds_strat_10","fold_1","images", "train")
+    val_path = os.path.join(project_root,  "Folds_strat_10","fold_1","images", "val")
+    train_labels_path = os.path.join(project_root,  "Folds_strat_10","fold_1","labels", "train")
+    val_labels_path = os.path.join(project_root,  "Folds_strat_10","fold_1","labels", "val")
     run_sadl(model_path, train_path, val_path, train_labels_path, val_labels_path)
