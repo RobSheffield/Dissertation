@@ -23,6 +23,24 @@ def _resolve_path(path_value):
     return os.path.abspath(os.path.join(PROJECT_ROOT, path_value))
 
 
+def _is_explicit_no_defect_folder(folder_path):
+    for name in os.listdir(folder_path):
+        if not name.lower().endswith("readme.txt"):
+            continue
+
+        readme_path = os.path.join(folder_path, name)
+        try:
+            with open(readme_path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read().lower()
+        except OSError:
+            continue
+
+        if "unlabeled" in text and ("no defect" in text or "no defects" in text):
+            return True
+
+    return False
+
+
 # --------------------------------------------------
 # STEP 1: CREATE FOLDS (FOLDER-LEVEL SPLIT)
 # --------------------------------------------------
@@ -74,7 +92,7 @@ def create_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
     for folder in folders:
         path = os.path.join(image_path, folder)
         gt_file = os.path.join(path, "ground_truth.txt")
-        if not os.path.isfile(gt_file):
+        if not os.path.isfile(gt_file) and not _is_explicit_no_defect_folder(path):
             continue
         count = len([f for f in os.listdir(path)
                      if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
@@ -118,7 +136,21 @@ def create_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
             gt_file = os.path.join(folder_path, "ground_truth.txt")
 
             if not os.path.isfile(gt_file):
-                print(f"Skipping {folder} (no GT)")
+                if not _is_explicit_no_defect_folder(folder_path):
+                    print(f"Skipping {folder} (no GT)")
+                    continue
+
+                for img in os.listdir(folder_path):
+                    if not img.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        continue
+
+                    stem = os.path.splitext(img)[0]
+                    shutil.copy2(
+                        os.path.join(folder_path, img),
+                        os.path.join(img_dir, f"{folder}_{img}")
+                    )
+                    open(os.path.join(lbl_dir, f"{folder}_{stem}.txt"), 'w').close()
+
                 continue
 
             temp_labels = os.path.join(fold_dir, "temp_labels")
@@ -178,7 +210,19 @@ def build_test_set(image_path, output_path, testSize, folder_counts):
             gt_file = os.path.join(folder_path, "ground_truth.txt")
 
             if not os.path.isfile(gt_file):
-                print(f"Skipping {folder} (no GT)")
+                if not _is_explicit_no_defect_folder(folder_path):
+                    print(f"Skipping {folder} (no GT)")
+                    continue
+
+                for img in os.listdir(folder_path):
+                    if img.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        shutil.copy(
+                            os.path.join(folder_path, img),
+                            os.path.join(test_dir, "images", f"{folder}_{img}")
+                        )
+                        stem = os.path.splitext(img)[0]
+                        open(os.path.join(test_dir, "labels", f"{folder}_{stem}.txt"), 'w').close()
+
                 continue
 
             temp_labels = os.path.join(test_dir, "temp_labels")
@@ -240,18 +284,19 @@ def create_bias_folds(image_path, output_path, k=4, testSize=0.2, seed=42):
             continue
 
         gt_file = os.path.join(folder_path, "ground_truth.txt")
-        if not os.path.isfile(gt_file):
+        if not os.path.isfile(gt_file) and not _is_explicit_no_defect_folder(folder_path):
             print(f"Skipping {folder} (no GT)")
             continue
 
-        folder_cache = os.path.join(label_cache_root, folder)
-        os.makedirs(folder_cache, exist_ok=True)
-        convert_gt_to_yolo(gt_file, folder_path, folder_cache, class_id=0)
+        if os.path.isfile(gt_file):
+            folder_cache = os.path.join(label_cache_root, folder)
+            os.makedirs(folder_cache, exist_ok=True)
+            convert_gt_to_yolo(gt_file, folder_path, folder_cache, class_id=0)
 
-        for label_name in os.listdir(folder_cache):
-            if label_name.endswith(".txt"):
-                stem = os.path.splitext(label_name)[0]
-                label_lookup[(folder, stem)] = os.path.join(folder_cache, label_name)
+            for label_name in os.listdir(folder_cache):
+                if label_name.endswith(".txt"):
+                    stem = os.path.splitext(label_name)[0]
+                    label_lookup[(folder, stem)] = os.path.join(folder_cache, label_name)
 
         for img in os.listdir(folder_path):
             if img.lower().endswith(('.png', '.jpg', '.jpeg')):
