@@ -1,15 +1,30 @@
 import DSA
 import LSA
-import helpers
+import importlib.util
 import torch
 import numpy as np
 import pickle
 import os
 import cv2
 import csv
+from pathlib import Path
 from collections import defaultdict
 from torch.utils.data import Dataset, DataLoader
 from map_eval import compute_mAP_for_bins
+
+
+def _load_local_helpers_module():
+    """Load testing/SADL/helpers.py without shadowing the top-level helpers package."""
+    helpers_path = Path(__file__).with_name("helpers.py")
+    spec = importlib.util.spec_from_file_location("sadl_local_helpers", helpers_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load SADL helpers module from: {helpers_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+sadl_helpers = _load_local_helpers_module()
 
 
 class ImageDataset(Dataset):
@@ -88,8 +103,8 @@ def run_sadl(model_path, train_path, val_path, train_labels_path, val_labels_pat
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=0)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    train_ats = helpers.get_ats(model, train_loader, device)
-    val_ats = helpers.get_ats(model, val_loader, device)
+    train_ats = sadl_helpers.get_ats(model, train_loader, device)
+    val_ats = sadl_helpers.get_ats(model, val_loader, device)
     bin_amounts = 10
 
     lsa_results = LSA.fetch_lsa(train_ats, val_ats)
