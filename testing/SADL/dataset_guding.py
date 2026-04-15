@@ -286,9 +286,10 @@ if __name__ == "__main__":
         labels_dir=os.path.join(PROJECT_ROOT, "testing/First_60_guide/labels/test"),
         bin_root=os.path.join(PROJECT_ROOT, "binned_results/_temp_eval_guide_test"),
     )
-    folders = run_SADL.score_folder(
-        image_paths=[os.path.join(test_image_dir, f) for f in test_image_names],
-        values=[0.5] * len(test_image_names)
+    folders, dsa_image_scores = run_SADL.score_folder_dsa(
+        model_path=os.path.join(PROJECT_ROOT, "testing/First_60_baseline_model/weights/best.pt"),
+        train_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/images/train"),
+        target_path=test_image_dir,
     )
     folders = sorted(folders.items(), key=lambda x: x[1], reverse=True)
     selected_folders = [folder for folder, score in folders[:int(len(folders) * 0.5)]]
