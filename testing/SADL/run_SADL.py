@@ -7,10 +7,9 @@ import pickle
 import os
 import cv2
 import csv
-import shutil
-import yaml
+from collections import defaultdict
 from torch.utils.data import Dataset, DataLoader
-from ultralytics import YOLO
+from map_eval import compute_mAP_for_bins
 
 
 class ImageDataset(Dataset):
@@ -79,91 +78,8 @@ def save_named_results(output_path, image_files, scores):
         for image_name, score in zip(image_files, scores):
             writer.writerow([image_name, score])
 
-def compute_mAP_for_bins(paths_in_bin, model_path, images_dir, labels_dir, prefix='', imgsz=1280, batch=16):
-    yolo_model = YOLO(model_path)
 
-    output_root = "binned_results"
-    temp_root = os.path.join(output_root, f"_temp_eval_{prefix.strip('_') or 'bin'}")
-    if os.path.exists(temp_root):
-        shutil.rmtree(temp_root)
-    os.makedirs(temp_root, exist_ok=True)
-
-    summary_rows = []
-
-    for i, bin_paths in enumerate(paths_in_bin):
-        print(f"Computing mAP50 for bin {i} with {len(bin_paths)} images...")
-
-        bin_root = os.path.join(temp_root, f"bin_{i}")
-        bin_images = os.path.join(bin_root, "images")
-        bin_labels = os.path.join(bin_root, "labels")
-        os.makedirs(bin_images, exist_ok=True)
-        os.makedirs(bin_labels, exist_ok=True)
-
-        copied_images = 0
-        for image_name in bin_paths:
-            src_img = os.path.join(images_dir, image_name)
-            if not os.path.isfile(src_img):
-                continue
-
-            dst_img = os.path.join(bin_images, image_name)
-            shutil.copy2(src_img, dst_img)
-            copied_images += 1
-
-            label_name = os.path.splitext(image_name)[0] + ".txt"
-            src_lbl = os.path.join(labels_dir, label_name)
-            dst_lbl = os.path.join(bin_labels, label_name)
-            if os.path.isfile(src_lbl):
-                shutil.copy2(src_lbl, dst_lbl)
-            else:
-                open(dst_lbl, "w").close()
-
-        if copied_images == 0:
-            summary_rows.append((i, 0, float("nan")))
-            print(f"Bin {i} has no valid images. mAP50 = NaN")
-            continue
-
-        data_yaml_path = os.path.join(bin_root, "data.yaml")
-        data_yaml = {
-            "path": os.path.abspath(bin_root),
-            "train": "images",
-            "val": "images",
-            "test": "images",
-            "nc": 1,
-            "names": ["defect"],
-        }
-        with open(data_yaml_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(data_yaml, f)
-
-        metrics = yolo_model.val(
-            data=data_yaml_path,
-            split="val",
-            imgsz=imgsz,
-            batch=min(batch, copied_images),
-            verbose=False,
-        )
-        map50 = float(getattr(metrics.box, "map50", float("nan")))
-        summary_rows.append((i, copied_images, map50))
-        print(f"Bin {i} mAP50: {map50}")
-
-    summary_path = os.path.join(output_root, f"{prefix}bin_map50.csv")
-    with open(summary_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["bin", "images", "map50"])
-        writer.writerows(summary_rows)
-
-    print(f"Saved per-bin mAP50 summary: {summary_path}")
-    return summary_rows
-
-if __name__ == "__main__":
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    model_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "testing","final_datas","strat_10_unbiased_models", "fold_1", "weights", "best.pt")
-    )
-    train_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","images", "train")
-    val_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","images", "val")
-    train_labels_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","labels", "train")
-    val_labels_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","labels", "val")
-    #TODO fix this up
+def run_sadl(model_path, train_path, val_path, train_labels_path, val_labels_path):
     model = torch.load(model_path, weights_only=False)
     if isinstance(model, dict) and "model" in model:
         model = model["model"]
@@ -198,3 +114,52 @@ if __name__ == "__main__":
 
     paths_in_bin = pack_bins(val_dataset.image_files, dsa_results, bin_amounts, prefix='dsa_')
     compute_mAP_for_bins(paths_in_bin, model_path, val_path, val_labels_path, prefix='dsa_')
+
+
+def score_folder(image_paths, values):
+    # Simple average of image scores as folder score.
+    # Also infer source folder under Castings for each image and print per-folder mean.
+    if len(image_paths) != len(values):
+        raise ValueError("image_paths and values must have the same length.")
+
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    castings_root = os.path.join(project_root, "Castings")
+
+    def infer_castings_folder(image_path):
+        # Fast path for names produced by the splitter, e.g. C0001_C0001_0001.png.
+        image_name = os.path.basename(image_path)
+        candidate = image_name.split("_", 1)[0]
+        if candidate and os.path.isdir(os.path.join(castings_root, candidate)):
+            return candidate
+
+        # Fallback: search actual Castings subfolders for this image file.
+        for folder in os.listdir(castings_root):
+            folder_path = os.path.join(castings_root, folder)
+            if not os.path.isdir(folder_path):
+                continue
+            if os.path.isfile(os.path.join(folder_path, image_name)):
+                return folder
+        return None
+
+    folder_scores = []
+    for image_path, value in zip(image_paths, values):
+        folder = infer_castings_folder(image_path)
+        folder_key = folder if folder is not None else "UNKNOWN"
+        folder_scores.append((folder_key, float(value)))
+        print(f"{folder_key}/{os.path.basename(image_path)}: {value}")
+    avg_folder_scores = {folder: float(np.mean([v for k, v in folder_scores if k == folder])) for folder in set(k for k, v in folder_scores)}
+
+    return avg_folder_scores
+
+
+
+if __name__ == "__main__":
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    model_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "testing","final_datas","strat_10_unbiased_models", "fold_1", "weights", "best.pt")
+    )
+    train_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","images", "train")
+    val_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","images", "val")
+    train_labels_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","labels", "train")
+    val_labels_path = os.path.join(project_root,  "testing","final_datas","Folds_strat_10","fold_1","labels", "val")
+    run_sadl(model_path, train_path, val_path, train_labels_path, val_labels_path)

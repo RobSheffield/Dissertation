@@ -492,12 +492,12 @@ def build_train_val_sets(folds_path, apply_training_augmentations=False):
 # STEP 3: TRAIN
 # --------------------------------------------------
 
-def train_all(folds_path, model_dir="models", device="auto",flips=False,epochs=150):
+def train_all(folds_path, model_dir="models", device="auto",flips=False,epochs=150,one_shot=False):
     folds_path = _resolve_path(folds_path)
     model_dir = _resolve_path(model_dir)
     folds = sorted([f for f in os.listdir(folds_path) if f.startswith("fold_")])
 
-    for fold in folds:
+    for fold in folds if not one_shot else folds[:1]:
         fold_dir = os.path.join(folds_path, fold)
         yaml_path = os.path.join(fold_dir, "data.yaml")
 
