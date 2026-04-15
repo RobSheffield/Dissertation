@@ -230,6 +230,8 @@ def move_folders_to_train(folders,output_root):
 
 
 def _train_minimal(data_dir, model_dir, epochs=50):
+    data_dir = os.path.abspath(data_dir)
+    model_dir = os.path.abspath(model_dir)
     data_yaml = os.path.join(data_dir, "data.yaml")
     create_yaml(data_dir, data_yaml, ["defect"])
 
@@ -262,39 +264,40 @@ if __name__ == "__main__":
     build_partition(castings_dir="Castings", output_dir="testing/First_60_guide", seed=42,portion_1=portion_1, portion_2=portion_2, portion_3=portion_3)
     build_partition(castings_dir="Castings", output_dir="testing/First_60_rand", seed=42,portion_1=portion_1, portion_2=portion_2, portion_3=portion_3)
 
-    baseline = _train_minimal("testing/First_60_guide", "testing/First_60_baseline_model", epochs=50)
+    baseline = _train_minimal(os.path.join(PROJECT_ROOT, "testing/First_60_guide"), os.path.join(PROJECT_ROOT, "testing/First_60_baseline_model"), epochs=50)
     run_SADL.run_sadl(
-        model_path="testing/First_60_baseline_model/weights/best.pt",
-        train_path="testing/First_60_guide/images/train",
-        val_path="testing/First_60_guide/images/val",
-        train_labels_path="testing/First_60_guide/labels/train",
-        val_labels_path="testing/First_60_guide/labels/val",
+        model_path=os.path.join(PROJECT_ROOT, "testing/First_60_baseline_model/weights/best.pt"),
+        train_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/images/train"),
+        val_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/images/val"),
+        train_labels_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/labels/train"),
+        val_labels_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/labels/val"),
     )
 
+    test_image_dir = os.path.join(PROJECT_ROOT, "testing/First_60_guide/images/test")
     test_image_names = [
-        f for f in os.listdir("testing/First_60_guide/images/test")
+        f for f in os.listdir(test_image_dir)
         if f.lower().endswith(IMAGE_EXTENSIONS)
     ]
 
     evaluate_map50_on_image_subset(
-        yolo_model=YOLO("testing/First_60_baseline_model/weights/best.pt"),
+        yolo_model=YOLO(os.path.join(PROJECT_ROOT, "testing/First_60_baseline_model/weights/best.pt")),
         image_names=test_image_names,
-        images_dir="testing/First_60_guide/images/test",
-        labels_dir="testing/First_60_guide/labels/test",
-        bin_root="binned_results/_temp_eval_guide_test",
+        images_dir=test_image_dir,
+        labels_dir=os.path.join(PROJECT_ROOT, "testing/First_60_guide/labels/test"),
+        bin_root=os.path.join(PROJECT_ROOT, "binned_results/_temp_eval_guide_test"),
     )
     folders = run_SADL.score_folder(
-        image_paths=[os.path.join("testing/First_60_guide/images/test", f) for f in test_image_names],
+        image_paths=[os.path.join(test_image_dir, f) for f in test_image_names],
         values=[0.5] * len(test_image_names)
     )
     folders = sorted(folders.items(), key=lambda x: x[1], reverse=True)
     selected_folders = [folder for folder, score in folders[:int(len(folders) * 0.5)]]
     random_folders = [folder for folder, score in folders[:int(len(folders) * 0.5)]]
     random.Random(42).shuffle(random_folders)
-    move_folders_to_train(selected_folders, "testing/First_60_guide")
-    move_folders_to_train(random_folders, "testing/First_60_rand")
-    guided_model = _train_minimal("testing/First_60_guide", "testing/First_60_guide_model", epochs=50)
+    move_folders_to_train(selected_folders, os.path.join(PROJECT_ROOT, "testing/First_60_guide"))
+    move_folders_to_train(random_folders, os.path.join(PROJECT_ROOT, "testing/First_60_rand"))
+    guided_model = _train_minimal(os.path.join(PROJECT_ROOT, "testing/First_60_guide"), os.path.join(PROJECT_ROOT, "testing/First_60_guide_model"), epochs=50)
 
-    random_model = _train_minimal("testing/First_60_rand", "testing/First_60_rand_model", epochs=50)
+    random_model = _train_minimal(os.path.join(PROJECT_ROOT, "testing/First_60_rand"), os.path.join(PROJECT_ROOT, "testing/First_60_rand_model"), epochs=50)
     
         
