@@ -11,20 +11,8 @@ from pathlib import Path
 from collections import defaultdict
 from torch.utils.data import Dataset, DataLoader
 from map_eval import compute_mAP_for_bins
+import sadl_helpers
 
-
-def _load_local_helpers_module():
-    """Load testing/SADL/helpers.py without shadowing the top-level helpers package."""
-    helpers_path = Path(__file__).with_name("helpers.py")
-    spec = importlib.util.spec_from_file_location("sadl_local_helpers", helpers_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Unable to load SADL helpers module from: {helpers_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-sadl_helpers = _load_local_helpers_module()
 
 
 class ImageDataset(Dataset):
