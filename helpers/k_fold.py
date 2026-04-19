@@ -538,7 +538,7 @@ def train_all(folds_path, model_dir="models", device="auto",flips=False,epochs=1
             training_start=datetime.datetime.now().isoformat(),
             model_dir=os.path.join(model_dir, fold),
             weights=preweights,
-            img_size="1280",
+            img_size="640",
             batch_size="12",
             epochs=str(epochs),
             device=device,
@@ -613,7 +613,7 @@ def mAP_on_test_set(test_dir, model_dir):
         metrics = model.val(
             data=yaml_path,
             split="test",
-            imgsz=1280,
+            imgsz=640,
             batch=16,
             verbose=False
         )
