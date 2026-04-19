@@ -11,11 +11,7 @@ if __name__ == "__main__":
     k_fold.create_folds("Castings", "Folds_non_augmented", k=10, testSize=0, seed=42) 
     k_fold.build_train_val_sets("Folds_non_augmented", apply_training_augmentations=False)
     k_fold.build_train_val_sets("Folds_non_augmented", apply_training_augmentations=True)
-    k_fold.train_all("Folds_non_augmented", "models_vertical_flip", device="auto", flips=True,epochs=50)
-    k_fold.train_all("Folds_augmented", "models_augmented", device="auto", epochs=50)
-    k_fold.train_all("Folds_non_augmented", "models_non_augmented", device="auto", epochs=50)
+    k_fold.train_all("Folds_non_augmented", "models_vertical_flip", device="auto", flips=True,epochs=100)
+    k_fold.train_all("Folds_augmented", "models_augmented", device="auto", epochs=100)
+    k_fold.train_all("Folds_non_augmented", "models_non_augmented", device="auto", epochs=100)
 
-    if os.path.isdir(folds_non_aug):
-        shutil.rmtree(folds_non_aug)
-    if os.path.isdir(folds_aug):
-        shutil.rmtree(folds_aug)
