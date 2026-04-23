@@ -52,6 +52,8 @@ def evaluate_map50_on_image_subset(yolo_model, image_names, images_dir, labels_d
         split="val",
         imgsz=imgsz,
         batch=min(batch, copied_images),
+        workers=0,
+        plots=False,
         verbose=False,
     )
     map50 = float(getattr(metrics.box, "map50", float("nan")))
