@@ -286,7 +286,7 @@ if __name__ == "__main__":
         labels_dir=os.path.join(PROJECT_ROOT, "testing/First_60_guide/labels/test"),
         bin_root=os.path.join(PROJECT_ROOT, "binned_results/_temp_eval_guide_test"),
     )
-    folders, dsa_image_scores = run_SADL.score_folder_dsa(
+    folders, lsa_image_scores = run_SADL.score_folder_lsa(
         model_path=os.path.join(PROJECT_ROOT, "testing/First_60_baseline_model/weights/best.pt"),
         train_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/images/train"),
         target_path=test_image_dir,
