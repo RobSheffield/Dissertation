@@ -7,7 +7,8 @@ from ultralytics import YOLO
 
 def evaluate_map50_on_image_subset(yolo_model, image_names, images_dir, labels_dir, bin_root, imgsz=1280, batch=16):
     """
-    Build a temporary YOLO dataset from a subset of image names and return (image_count, map50).
+    Build a temporary YOLO dataset from a subset of image names and return
+    (image_count, map50, f1), where f1 is derived from detection precision/recall.
     """
     bin_images = os.path.join(bin_root, "images")
     bin_labels = os.path.join(bin_root, "labels")
@@ -33,7 +34,7 @@ def evaluate_map50_on_image_subset(yolo_model, image_names, images_dir, labels_d
             open(dst_lbl, "w", encoding="utf-8").close()
 
     if copied_images == 0:
-        return 0, float("nan")
+        return 0, float("nan"), float("nan")
 
     data_yaml_path = os.path.join(bin_root, "data.yaml")
     data_yaml = {
@@ -57,12 +58,16 @@ def evaluate_map50_on_image_subset(yolo_model, image_names, images_dir, labels_d
         verbose=False,
     )
     map50 = float(getattr(metrics.box, "map50", float("nan")))
-    return copied_images, map50
+    precision = float(metrics.results_dict.get("metrics/precision(B)", float("nan")))
+    recall = float(metrics.results_dict.get("metrics/recall(B)", float("nan")))
+    denom = precision + recall
+    f1 = float(2.0 * precision * recall / denom) if denom > 0 else 0.0
+    return copied_images, map50, f1
 
 
 def compute_mAP_for_bins(paths_in_bin, model_path, images_dir, labels_dir, prefix="", imgsz=1280, batch=16):
     """
-    Compute mAP50 per bin and write a CSV summary under binned_results.
+    Compute mAP50 and stricter detection-level F1 per bin, then write a CSV summary under binned_results.
     """
     yolo_model = YOLO(model_path)
 
@@ -75,10 +80,10 @@ def compute_mAP_for_bins(paths_in_bin, model_path, images_dir, labels_dir, prefi
     summary_rows = []
 
     for i, bin_paths in enumerate(paths_in_bin):
-        print(f"Computing mAP50 for bin {i} with {len(bin_paths)} images...")
+        print(f"Computing F1 for bin {i} with {len(bin_paths)} images...")
 
         bin_root = os.path.join(temp_root, f"bin_{i}")
-        copied_images, map50 = evaluate_map50_on_image_subset(
+        copied_images, map50, f1 = evaluate_map50_on_image_subset(
             yolo_model=yolo_model,
             image_names=bin_paths,
             images_dir=images_dir,
@@ -88,17 +93,23 @@ def compute_mAP_for_bins(paths_in_bin, model_path, images_dir, labels_dir, prefi
             batch=batch,
         )
 
-        summary_rows.append((i, copied_images, map50))
+        summary_rows.append((i, copied_images, map50, f1))
         if copied_images == 0:
-            print(f"Bin {i} has no valid images. mAP50 = NaN")
+            print(f"Bin {i} F1: NaN")
         else:
-            print(f"Bin {i} mAP50: {map50}")
+            print(f"Bin {i} F1: {f1}")
+
+    metrics_summary_path = os.path.join(output_root, f"{prefix}bin_metrics.csv")
+    with open(metrics_summary_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["bin", "images", "map50", "f1"])
+        writer.writerows(summary_rows)
 
     summary_path = os.path.join(output_root, f"{prefix}bin_map50.csv")
     with open(summary_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["bin", "images", "map50"])
-        writer.writerows(summary_rows)
+        writer.writerows((row[0], row[1], row[2]) for row in summary_rows)
 
-    print(f"Saved per-bin mAP50 summary: {summary_path}")
+    print(f"Saved per-bin F1 summary: {metrics_summary_path}")
     return summary_rows

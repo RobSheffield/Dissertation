@@ -4,6 +4,7 @@ import shutil
 import heapq
 import sys
 import json
+import csv
 from pathlib import Path
 from datetime import datetime
 
@@ -17,6 +18,61 @@ from stages.model_training import create_yaml
 from map_eval import evaluate_map50_on_image_subset
 from ultralytics import YOLO
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
+
+
+def _evaluate_test_subset(model_weights, image_names, images_dir, labels_dir, bin_root):
+    image_count, map50, f1 = evaluate_map50_on_image_subset(
+        yolo_model=YOLO(model_weights),
+        image_names=image_names,
+        images_dir=images_dir,
+        labels_dir=labels_dir,
+        bin_root=bin_root,
+    )
+    return {
+        "images": int(image_count),
+        "map50": float(map50),
+        "f1": float(f1),
+    }
+
+
+def _save_experiment_results(rows, output_csv):
+    output_dir = os.path.dirname(output_csv)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    fieldnames = [
+        "run",
+        "seed",
+        "model",
+        "test_images",
+        "map50",
+        "f1",
+    ]
+
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _save_aggregate_results(rows, output_csv):
+    output_dir = os.path.dirname(output_csv)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    grouped = {}
+    for row in rows:
+        grouped.setdefault(row["model"], []).append(row)
+
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["model", "runs", "mean_map50", "mean_f1"])
+        for model_name in sorted(grouped.keys()):
+            model_rows = grouped[model_name]
+            n = len(model_rows)
+            mean_map50 = sum(r["map50"] for r in model_rows) / n if n else float("nan")
+            mean_f1 = sum(r["f1"] for r in model_rows) / n if n else float("nan")
+            writer.writerow([model_name, n, mean_map50, mean_f1])
 
 
 def balanced_split(folders, counts, k, seed=42):
@@ -261,56 +317,141 @@ if __name__ == "__main__":
     portion_1 = 0.5
     portion_2 = 0.3
     portion_3 = 0.2
-    build_partition(castings_dir="Castings", output_dir="testing/First_60_guide", seed=42,portion_1=portion_1, portion_2=portion_2, portion_3=portion_3)
-    build_partition(castings_dir="Castings", output_dir="testing/First_60_rand", seed=42,portion_1=portion_1, portion_2=portion_2, portion_3=portion_3)
+    n_runs = 5
+    base_seed = 42
+    results_rows = []
 
-    baseline = _train_minimal(os.path.join(PROJECT_ROOT, "testing/First_60_guide"), os.path.join(PROJECT_ROOT, "testing/First_60_baseline_model"), epochs=50)
-    run_SADL.run_sadl(
-        model_path=os.path.join(PROJECT_ROOT, "testing/First_60_baseline_model/weights/best.pt"),
-        train_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/images/train"),
-        val_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/images/val"),
-        train_labels_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/labels/train"),
-        val_labels_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/labels/val"),
-    )
+    for run_idx in range(n_runs):
+        run_num = run_idx + 1
+        run_seed = base_seed + run_idx
 
-    test_image_dir = os.path.join(PROJECT_ROOT, "testing/First_60_guide/images/test")
-    test_image_names = [
-        f for f in os.listdir(test_image_dir)
-        if f.lower().endswith(IMAGE_EXTENSIONS)
-    ]
+        guide_output = f"testing/First_60_guide_run_{run_num}"
+        rand_output = f"testing/First_60_rand_run_{run_num}"
+        baseline_model_dir = os.path.join(PROJECT_ROOT, f"testing/First_60_baseline_model_run_{run_num}")
+        guided_model_dir = os.path.join(PROJECT_ROOT, f"testing/First_60_guide_model_run_{run_num}")
+        random_model_dir = os.path.join(PROJECT_ROOT, f"testing/First_60_rand_model_run_{run_num}")
 
-    evaluate_map50_on_image_subset(
-        yolo_model=YOLO(os.path.join(PROJECT_ROOT, "testing/First_60_baseline_model/weights/best.pt")),
-        image_names=test_image_names,
-        images_dir=test_image_dir,
-        labels_dir=os.path.join(PROJECT_ROOT, "testing/First_60_guide/labels/test"),
-        bin_root=os.path.join(PROJECT_ROOT, "binned_results/_temp_eval_guide_test"),
-    )
-    folders, lsa_image_scores = run_SADL.score_folder_lsa(
-        model_path=os.path.join(PROJECT_ROOT, "testing/First_60_baseline_model/weights/best.pt"),
-        train_path=os.path.join(PROJECT_ROOT, "testing/First_60_guide/images/train"),
-        target_path=test_image_dir,
-    )
-    folders = sorted(folders.items(), key=lambda x: x[1], reverse=True)
-    selected_folders = [folder for folder, score in folders[:int(len(folders) * 0.5)]]
-    random_folders = [folder for folder, score in folders[:int(len(folders) * 0.5)]]
-    random.Random(42).shuffle(random_folders)
-    move_folders_to_train(selected_folders, os.path.join(PROJECT_ROOT, "testing/First_60_guide"))
-    move_folders_to_train(random_folders, os.path.join(PROJECT_ROOT, "testing/First_60_rand"))
-    guided_model = _train_minimal(os.path.join(PROJECT_ROOT, "testing/First_60_guide"), os.path.join(PROJECT_ROOT, "testing/First_60_guide_model"), epochs=50)
+        build_partition(
+            castings_dir="Castings",
+            output_dir=guide_output,
+            seed=run_seed,
+            portion_1=portion_1,
+            portion_2=portion_2,
+            portion_3=portion_3,
+        )
+        build_partition(
+            castings_dir="Castings",
+            output_dir=rand_output,
+            seed=run_seed,
+            portion_1=portion_1,
+            portion_2=portion_2,
+            portion_3=portion_3,
+        )
 
-    random_model = _train_minimal(os.path.join(PROJECT_ROOT, "testing/First_60_rand"), os.path.join(PROJECT_ROOT, "testing/First_60_rand_model"), epochs=50)
-    evaluate_map50_on_image_subset(
-        yolo_model=YOLO(os.path.join(PROJECT_ROOT, "testing/First_60_guide_model/weights/best.pt")),
-        image_names=test_image_names,
-        images_dir=test_image_dir,
-        labels_dir=os.path.join(PROJECT_ROOT, "testing/First_60_guide/labels/test"),
-        bin_root=os.path.join(PROJECT_ROOT, "binned_results/_temp_eval_guide_test"),
-    )
-    evaluate_map50_on_image_subset(
-        yolo_model=YOLO(os.path.join(PROJECT_ROOT, "testing/First_60_rand_model/weights/best.pt")),
-        image_names=test_image_names,
-        images_dir=test_image_dir,
-        labels_dir=os.path.join(PROJECT_ROOT, "testing/First_60_rand/labels/test"),
-        bin_root=os.path.join(PROJECT_ROOT, "binned_results/_temp_eval_rand_test"),
-    )
+        guide_root = os.path.join(PROJECT_ROOT, guide_output)
+        rand_root = os.path.join(PROJECT_ROOT, rand_output)
+
+        _train_minimal(guide_root, baseline_model_dir, epochs=50)
+        baseline_weights = os.path.join(baseline_model_dir, "weights", "best.pt")
+
+        run_SADL.run_sadl(
+            model_path=baseline_weights,
+            train_path=os.path.join(guide_root, "images", "train"),
+            val_path=os.path.join(guide_root, "images", "val"),
+            train_labels_path=os.path.join(guide_root, "labels", "train"),
+            val_labels_path=os.path.join(guide_root, "labels", "val"),
+        )
+
+        test_image_dir = os.path.join(guide_root, "images", "test")
+        test_image_names = [
+            f for f in os.listdir(test_image_dir)
+            if f.lower().endswith(IMAGE_EXTENSIONS)
+        ]
+
+        baseline_metrics = _evaluate_test_subset(
+            model_weights=baseline_weights,
+            image_names=test_image_names,
+            images_dir=test_image_dir,
+            labels_dir=os.path.join(guide_root, "labels", "test"),
+            bin_root=os.path.join(PROJECT_ROOT, f"binned_results/_temp_eval_guide_test_run_{run_num}_baseline"),
+        )
+        results_rows.append(
+            {
+                "run": run_num,
+                "seed": run_seed,
+                "model": "baseline",
+                "test_images": baseline_metrics["images"],
+                "map50": baseline_metrics["map50"],
+                "f1": baseline_metrics["f1"],
+            }
+        )
+
+        folders, lsa_image_scores = run_SADL.score_folder_lsa(
+            model_path=baseline_weights,
+            train_path=os.path.join(guide_root, "images", "train"),
+            target_path=test_image_dir,
+        )
+        folders = sorted(folders.items(), key=lambda x: x[1], reverse=True)
+        selected_folders = [folder for folder, score in folders[:int(len(folders) * 0.5)]]
+        random_folders = [folder for folder, score in folders[:int(len(folders) * 0.5)]]
+        random.Random(run_seed).shuffle(random_folders)
+
+        move_folders_to_train(selected_folders, guide_root)
+        move_folders_to_train(random_folders, rand_root)
+
+        _train_minimal(guide_root, guided_model_dir, epochs=50)
+        _train_minimal(rand_root, random_model_dir, epochs=50)
+
+        guided_weights = os.path.join(guided_model_dir, "weights", "best.pt")
+        random_weights = os.path.join(random_model_dir, "weights", "best.pt")
+
+        guided_metrics = _evaluate_test_subset(
+            model_weights=guided_weights,
+            image_names=test_image_names,
+            images_dir=test_image_dir,
+            labels_dir=os.path.join(guide_root, "labels", "test"),
+            bin_root=os.path.join(PROJECT_ROOT, f"binned_results/_temp_eval_guide_test_run_{run_num}_guided"),
+        )
+        results_rows.append(
+            {
+                "run": run_num,
+                "seed": run_seed,
+                "model": "guided",
+                "test_images": guided_metrics["images"],
+                "map50": guided_metrics["map50"],
+                "f1": guided_metrics["f1"],
+            }
+        )
+
+        random_metrics = _evaluate_test_subset(
+            model_weights=random_weights,
+            image_names=test_image_names,
+            images_dir=test_image_dir,
+            labels_dir=os.path.join(rand_root, "labels", "test"),
+            bin_root=os.path.join(PROJECT_ROOT, f"binned_results/_temp_eval_rand_test_run_{run_num}_random"),
+        )
+        results_rows.append(
+            {
+                "run": run_num,
+                "seed": run_seed,
+                "model": "random",
+                "test_images": random_metrics["images"],
+                "map50": random_metrics["map50"],
+                "f1": random_metrics["f1"],
+            }
+        )
+
+        print(
+            f"Run {run_num}/{n_runs} (seed={run_seed}) test metrics | "
+            f"baseline F1={baseline_metrics['f1']:.4f}, "
+            f"guided F1={guided_metrics['f1']:.4f}, "
+            f"random F1={random_metrics['f1']:.4f}"
+        )
+
+    detailed_csv = os.path.join(PROJECT_ROOT, "testing", "SADL", "test_results_5_runs.csv")
+    aggregate_csv = os.path.join(PROJECT_ROOT, "testing", "SADL", "test_results_5_runs_summary.csv")
+    _save_experiment_results(results_rows, detailed_csv)
+    _save_aggregate_results(results_rows, aggregate_csv)
+
+    print(f"Saved detailed test results: {detailed_csv}")
+    print(f"Saved aggregate test results: {aggregate_csv}")

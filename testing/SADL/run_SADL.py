@@ -226,9 +226,9 @@ def score_folder(image_paths, values, aggregation="median"):
 
 
 if __name__ == "__main__":
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "final_datas"))
     model_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "strat_10_unbiased_models", "fold_1", "weights", "best.pt")
+        os.path.join(os.path.dirname(__file__),  "..","final_datas", "strat_10_unbiased_models", "fold_1", "weights", "best.pt")
     )
     train_path = os.path.join(project_root,  "Folds_strat_10","fold_1","images", "train")
     val_path = os.path.join(project_root,  "Folds_strat_10","fold_1","images", "val")
