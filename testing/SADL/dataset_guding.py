@@ -300,5 +300,17 @@ if __name__ == "__main__":
     guided_model = _train_minimal(os.path.join(PROJECT_ROOT, "testing/First_60_guide"), os.path.join(PROJECT_ROOT, "testing/First_60_guide_model"), epochs=50)
 
     random_model = _train_minimal(os.path.join(PROJECT_ROOT, "testing/First_60_rand"), os.path.join(PROJECT_ROOT, "testing/First_60_rand_model"), epochs=50)
-    
-        
+    evaluate_map50_on_image_subset(
+        yolo_model=YOLO(os.path.join(PROJECT_ROOT, "testing/First_60_guide_model/weights/best.pt")),
+        image_names=test_image_names,
+        images_dir=test_image_dir,
+        labels_dir=os.path.join(PROJECT_ROOT, "testing/First_60_guide/labels/test"),
+        bin_root=os.path.join(PROJECT_ROOT, "binned_results/_temp_eval_guide_test"),
+    )
+    evaluate_map50_on_image_subset(
+        yolo_model=YOLO(os.path.join(PROJECT_ROOT, "testing/First_60_rand_model/weights/best.pt")),
+        image_names=test_image_names,
+        images_dir=test_image_dir,
+        labels_dir=os.path.join(PROJECT_ROOT, "testing/First_60_rand/labels/test"),
+        bin_root=os.path.join(PROJECT_ROOT, "binned_results/_temp_eval_rand_test"),
+    )
