@@ -264,9 +264,9 @@ def build_partition(castings_dir="Castings", output_dir="testing/First_60", seed
         "output_root": output_root,
     }
 
-def move_folders_to_train(folders,output_root):
+def move_folders_to_train(folders, output_root, source_splits=("val",)):
     for folder in folders:
-        for split in ("val", "test"):
+        for split in source_splits:
             split_img_dir = os.path.join(output_root, "images", split)
             split_lbl_dir = os.path.join(output_root, "labels", split)
 
@@ -285,7 +285,7 @@ def move_folders_to_train(folders,output_root):
                     )
 
 
-def _train_minimal(data_dir, model_dir, epochs=50):
+def _train_minimal(data_dir, model_dir, epochs=50, base_model_path="yolo11n.pt"):
     data_dir = os.path.abspath(data_dir)
     model_dir = os.path.abspath(model_dir)
     data_yaml = os.path.join(data_dir, "data.yaml")
@@ -296,7 +296,7 @@ def _train_minimal(data_dir, model_dir, epochs=50):
     model_info = json.dumps(
         {
             "name": os.path.basename(model_dir),
-            "model": "yolo11n.pt",
+            "model": base_model_path,
             "date_time_trained": datetime.now().isoformat(),
             "total_training_time": 0,
             "number_of_images": train_img_count,
@@ -308,6 +308,7 @@ def _train_minimal(data_dir, model_dir, epochs=50):
         model_info=model_info,
         training_start=datetime.now().isoformat(),
         model_dir=model_dir,
+        model=base_model_path,
         img_size="1280",
         epochs=str(epochs),
         device="auto",
@@ -364,6 +365,7 @@ if __name__ == "__main__":
         )
 
         test_image_dir = os.path.join(guide_root, "images", "test")
+        test_label_dir = os.path.join(guide_root, "labels", "test")
         test_image_names = [
             f for f in os.listdir(test_image_dir)
             if f.lower().endswith(IMAGE_EXTENSIONS)
@@ -373,7 +375,7 @@ if __name__ == "__main__":
             model_weights=baseline_weights,
             image_names=test_image_names,
             images_dir=test_image_dir,
-            labels_dir=os.path.join(guide_root, "labels", "test"),
+            labels_dir=test_label_dir,
             bin_root=os.path.join(PROJECT_ROOT, f"binned_results/_temp_eval_guide_test_run_{run_num}_baseline"),
         )
         results_rows.append(
@@ -387,21 +389,30 @@ if __name__ == "__main__":
             }
         )
 
+        # Score only validation images so the held-out test set remains untouched.
+        val_image_dir = os.path.join(guide_root, "images", "val")
         folders, lsa_image_scores = run_SADL.score_folder_lsa(
             model_path=baseline_weights,
             train_path=os.path.join(guide_root, "images", "train"),
-            target_path=test_image_dir,
+            target_path=val_image_dir,
         )
         folders = sorted(folders.items(), key=lambda x: x[1], reverse=True)
-        selected_folders = [folder for folder, score in folders[:int(len(folders) * 0.5)]]
-        random_folders = [folder for folder, score in folders[:int(len(folders) * 0.5)]]
-        random.Random(run_seed).shuffle(random_folders)
+        rng = random.Random(run_seed)
+        top_half_count = int(len(folders) * 0.5)
+        top_half_folders = [folder for folder, _ in folders[:top_half_count]]
 
-        move_folders_to_train(selected_folders, guide_root)
-        move_folders_to_train(random_folders, rand_root)
+        # Guided branch: randomly draw from the top-half surprise pool.
+        guided_k = int(len(top_half_folders) * 0.5)
+        selected_folders = rng.sample(top_half_folders, k=guided_k) if guided_k > 0 else []
 
-        _train_minimal(guide_root, guided_model_dir, epochs=150)
-        _train_minimal(rand_root, random_model_dir, epochs=150)
+        all_candidate_folders = [folder for folder, _ in folders]
+        random_folders = rng.sample(all_candidate_folders, k=guided_k) if guided_k > 0 else []
+
+        move_folders_to_train(selected_folders, guide_root, source_splits=("val",))
+        move_folders_to_train(random_folders, rand_root, source_splits=("val",))
+
+        _train_minimal(guide_root, guided_model_dir, epochs=150, base_model_path=baseline_weights)
+        _train_minimal(rand_root, random_model_dir, epochs=150, base_model_path=baseline_weights)
 
         guided_weights = os.path.join(guided_model_dir, "weights", "best.pt")
         random_weights = os.path.join(random_model_dir, "weights", "best.pt")
@@ -410,7 +421,7 @@ if __name__ == "__main__":
             model_weights=guided_weights,
             image_names=test_image_names,
             images_dir=test_image_dir,
-            labels_dir=os.path.join(guide_root, "labels", "test"),
+            labels_dir=test_label_dir,
             bin_root=os.path.join(PROJECT_ROOT, f"binned_results/_temp_eval_guide_test_run_{run_num}_guided"),
         )
         results_rows.append(
@@ -428,7 +439,7 @@ if __name__ == "__main__":
             model_weights=random_weights,
             image_names=test_image_names,
             images_dir=test_image_dir,
-            labels_dir=os.path.join(rand_root, "labels", "test"),
+            labels_dir=test_label_dir,
             bin_root=os.path.join(PROJECT_ROOT, f"binned_results/_temp_eval_rand_test_run_{run_num}_random"),
         )
         results_rows.append(
