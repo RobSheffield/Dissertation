@@ -311,6 +311,7 @@ def _train_minimal(data_dir, model_dir, epochs=50):
         img_size="1280",
         epochs=str(epochs),
         device="auto",
+        flips = True
     )
 
 if __name__ == "__main__":
@@ -399,8 +400,8 @@ if __name__ == "__main__":
         move_folders_to_train(selected_folders, guide_root)
         move_folders_to_train(random_folders, rand_root)
 
-        _train_minimal(guide_root, guided_model_dir, epochs=50)
-        _train_minimal(rand_root, random_model_dir, epochs=50)
+        _train_minimal(guide_root, guided_model_dir, epochs=150)
+        _train_minimal(rand_root, random_model_dir, epochs=150)
 
         guided_weights = os.path.join(guided_model_dir, "weights", "best.pt")
         random_weights = os.path.join(random_model_dir, "weights", "best.pt")
