@@ -352,7 +352,7 @@ if __name__ == "__main__":
         guide_root = os.path.join(PROJECT_ROOT, guide_output)
         rand_root = os.path.join(PROJECT_ROOT, rand_output)
 
-        _train_minimal(guide_root, baseline_model_dir, epochs=50)
+        _train_minimal(guide_root, baseline_model_dir, epochs=150)
         baseline_weights = os.path.join(baseline_model_dir, "weights", "best.pt")
 
         run_SADL.run_sadl(
