@@ -308,7 +308,7 @@ def _train_minimal(data_dir, model_dir, epochs=50, base_model_path="yolo11n.pt")
         model_info=model_info,
         training_start=datetime.now().isoformat(),
         model_dir=model_dir,
-        model=base_model_path,
+        weights=base_model_path,
         img_size="1280",
         epochs=str(epochs),
         device="auto",
