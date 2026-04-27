@@ -316,11 +316,11 @@ def _train_minimal(data_dir, model_dir, epochs=50, base_model_path="yolo11n.pt")
     )
 
 if __name__ == "__main__":
-    portion_1 = 0.5
-    portion_2 = 0.3
+    portion_1 = 0.4
+    portion_2 = 0.4
     portion_3 = 0.2
     n_runs = 5
-    base_seed = 42
+    base_seed = 40
     results_rows = []
 
     for run_idx in range(n_runs):
