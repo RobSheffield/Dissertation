@@ -5,6 +5,7 @@ import heapq
 import sys
 import json
 import csv
+import secrets
 from pathlib import Path
 from datetime import datetime
 
@@ -320,12 +321,14 @@ if __name__ == "__main__":
     portion_2 = 0.4
     portion_3 = 0.2
     n_runs = 5
-    base_seed = 40
+    # Use cryptographically strong randomness so each script execution uses
+    # different partition seeds (and therefore different baseline selections).
+    run_seeds = [secrets.randbelow(2**31 - 1) + 1 for _ in range(n_runs)]
     results_rows = []
 
     for run_idx in range(n_runs):
         run_num = run_idx + 1
-        run_seed = base_seed + run_idx
+        run_seed = run_seeds[run_idx]
 
         guide_output = f"testing/First_60_guide_run_{run_num}"
         rand_output = f"testing/First_60_rand_run_{run_num}"
