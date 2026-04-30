@@ -111,20 +111,25 @@ def run_intervals(data_root: Path, out_csv: Path, k: int = 5):
             train_groups = [group_images[i] for i in train_idx]
             test_groups = [group_images[i] for i in test_idx]
 
-            # Concatenate all train images and then take a nested prefix from one
-            # fixed shuffled order so fractions remain comparable.
-            train_image_paths = []
-            for g, imgs in train_groups:
-                train_image_paths.extend(imgs)
-
-            if len(train_image_paths) == 0:
-                print(f"Warning: fold {fold_idx} has zero train images")
+            # Select training data by whole groups (folders) rather than
+            # sampling individual images. This preserves the folder-level
+            # independence characteristics required by the evaluation.
+            if not train_groups:
+                print(f"Warning: fold {fold_idx} has zero train groups")
                 continue
 
-            shuffled_train = list(train_image_paths)
-            rng.shuffle(shuffled_train)
-            sample_n = max(1, int(len(shuffled_train) * frac))
-            sampled_train = shuffled_train[:sample_n]
+            shuffled_groups = list(train_groups)
+            rng.shuffle(shuffled_groups)
+            sample_g = max(1, int(len(shuffled_groups) * frac))
+            selected_groups = shuffled_groups[:sample_g]
+
+            sampled_train = []
+            for g, imgs in selected_groups:
+                sampled_train.extend(imgs)
+
+            if len(sampled_train) == 0:
+                print(f"Warning: fold {fold_idx} selected groups contain zero images")
+                continue
 
             # Validation/test images are all images in test_groups
             val_image_paths = []
