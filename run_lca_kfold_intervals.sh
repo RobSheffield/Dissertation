@@ -11,9 +11,12 @@
 module load Python/3.11.3-GCCcore-12.3.0
 module load OpenBLAS/0.3.23-GCC-12.3.0
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 cd "$SCRIPT_DIR"
-source .venv/bin/activate
+VENV_ACTIVATE="$SCRIPT_DIR/.venv/bin/activate"
+if [ -f "$VENV_ACTIVATE" ]; then
+  source "$VENV_ACTIVATE"
+fi
 
 # Defaults are folder-based and independence-preserving.
 export LCA_DATA_ROOT=${LCA_DATA_ROOT:-Castings}
