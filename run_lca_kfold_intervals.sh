@@ -2,10 +2,10 @@
 #SBATCH --job-name=LCA_kfold
 #SBATCH --output=LCA_kfold_%j.log
 #SBATCH --error=LCA_kfold_%j.err
-#SBATCH --time=04:00:00
+#SBATCH --time=20:00:00
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:0
-#SBATCH --mem=16G
+#SBATCH --gres=gpu:1
+#SBATCH --mem=30G
 #SBATCH --cpus-per-task=4
 
 module load Python/3.11.3-GCCcore-12.3.0
