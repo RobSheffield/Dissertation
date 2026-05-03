@@ -320,7 +320,7 @@ if __name__ == "__main__":
     portion_1 = 0.4
     portion_2 = 0.4
     portion_3 = 0.2
-    n_runs = 5
+    n_runs = 10
     # Use cryptographically strong randomness so each script execution uses
     # different partition seeds (and therefore different baseline selections).
     run_seeds = [secrets.randbelow(2**31 - 1) + 1 for _ in range(n_runs)]
@@ -332,6 +332,7 @@ if __name__ == "__main__":
 
         guide_output = f"testing/First_60_guide_run_{run_num}"
         rand_output = f"testing/First_60_rand_run_{run_num}"
+        guide2_output = f"testing/First_60_guide2_run_{run_num}"
         baseline_model_dir = os.path.join(PROJECT_ROOT, f"testing/First_60_baseline_model_run_{run_num}")
         guided_model_dir = os.path.join(PROJECT_ROOT, f"testing/First_60_guide_model_run_{run_num}")
         random_model_dir = os.path.join(PROJECT_ROOT, f"testing/First_60_rand_model_run_{run_num}")
@@ -352,9 +353,18 @@ if __name__ == "__main__":
             portion_2=portion_2,
             portion_3=portion_3,
         )
+        build_partition(
+            castings_dir="Castings",
+            output_dir=guide2_output,
+            seed=run_seed,
+            portion_1=portion_1,
+            portion_2=portion_2,
+            portion_3=portion_3,
+        )
 
         guide_root = os.path.join(PROJECT_ROOT, guide_output)
         rand_root = os.path.join(PROJECT_ROOT, rand_output)
+        guide2_root = os.path.join(PROJECT_ROOT, guide2_output)
 
         _train_minimal(guide_root, baseline_model_dir, epochs=150)
         baseline_weights = os.path.join(baseline_model_dir, "weights", "best.pt")
@@ -414,11 +424,25 @@ if __name__ == "__main__":
         move_folders_to_train(selected_folders, guide_root, source_splits=("val",))
         move_folders_to_train(random_folders, rand_root, source_splits=("val",))
 
-        _train_minimal(guide_root, guided_model_dir, epochs=150, base_model_path=baseline_weights)
-        _train_minimal(rand_root, random_model_dir, epochs=150, base_model_path=baseline_weights)
+        # Guided2: sample only from the middle 50% of surprise-ranked folders (25%–75% cutoffs)
+        n_folders = len(folders)
+        if n_folders > 0:
+            low_idx = int(n_folders * 0.25)
+            high_idx = int(n_folders * 0.75)
+            middle_pool = [folder for folder, _ in folders[low_idx:high_idx]]
+        else:
+            middle_pool = []
+
+        guided2_k = int(len(middle_pool) * 0.5)
+        selected_folders2 = rng.sample(middle_pool, k=guided2_k) if guided2_k > 0 else []
+        move_folders_to_train(selected_folders2, guide2_root, source_splits=("val",))
+
+        _train_minimal(guide_root, guided_model_dir, epochs=150, base_model_path="yolo11n.pt")
+        _train_minimal(rand_root, random_model_dir, epochs=150, base_model_path="yolo11n.pt")
 
         guided_weights = os.path.join(guided_model_dir, "weights", "best.pt")
         random_weights = os.path.join(random_model_dir, "weights", "best.pt")
+        guided2_model_dir = os.path.join(PROJECT_ROOT, f"testing/First_60_guide2_model_run_{run_num}")
 
         guided_metrics = _evaluate_test_subset(
             model_weights=guided_weights,
@@ -435,6 +459,27 @@ if __name__ == "__main__":
                 "test_images": guided_metrics["images"],
                 "map50": guided_metrics["map50"],
                 "f1": guided_metrics["f1"],
+            }
+        )
+
+        # Train and evaluate guided2 (middle-50% sampling) from fresh base weights
+        _train_minimal(guide2_root, guided2_model_dir, epochs=150, base_model_path="yolo11n.pt")
+        guided2_weights = os.path.join(guided2_model_dir, "weights", "best.pt")
+        guided2_metrics = _evaluate_test_subset(
+            model_weights=guided2_weights,
+            image_names=test_image_names,
+            images_dir=test_image_dir,
+            labels_dir=test_label_dir,
+            bin_root=os.path.join(PROJECT_ROOT, f"binned_results/_temp_eval_guide2_test_run_{run_num}_guided2"),
+        )
+        results_rows.append(
+            {
+                "run": run_num,
+                "seed": run_seed,
+                "model": "guided2",
+                "test_images": guided2_metrics["images"],
+                "map50": guided2_metrics["map50"],
+                "f1": guided2_metrics["f1"],
             }
         )
 
@@ -463,8 +508,8 @@ if __name__ == "__main__":
             f"random F1={random_metrics['f1']:.4f}"
         )
 
-    detailed_csv = os.path.join(PROJECT_ROOT, "testing", "SADL", "test_results_5_runs.csv")
-    aggregate_csv = os.path.join(PROJECT_ROOT, "testing", "SADL", "test_results_5_runs_summary.csv")
+    detailed_csv = os.path.join(PROJECT_ROOT, "testing", "SADL", "test_results_k_5_runs.csv")
+    aggregate_csv = os.path.join(PROJECT_ROOT, "testing", "SADL", "test_results_k_5_runs_summary.csv")
     _save_experiment_results(results_rows, detailed_csv)
     _save_aggregate_results(results_rows, aggregate_csv)
 
