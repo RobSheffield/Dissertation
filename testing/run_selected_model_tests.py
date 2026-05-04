@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import yaml
 from pathlib import Path
 
 from ultralytics import YOLO
@@ -75,10 +76,13 @@ def _count_images(directory: Path) -> int:
 
 
 def _evaluate_test_model(model_path: Path, data_yaml: Path) -> dict[str, object]:
+    dataset_config = yaml.safe_load(data_yaml.read_text(encoding="utf-8")) or {}
+    split = "test" if dataset_config.get("test") else "val"
+
     model = YOLO(str(model_path))
     metrics = model.val(
         data=str(data_yaml),
-        split="test",
+        split=split,
         imgsz=1280,
         batch=16,
         workers=0,
@@ -94,8 +98,8 @@ def _evaluate_test_model(model_path: Path, data_yaml: Path) -> dict[str, object]
 
     return {
         "status": "ok",
-        "split": "test",
-        "images": _count_images(data_yaml.parent / "images" / "test"),
+        "split": split,
+        "images": _count_images(data_yaml.parent / "images" / split),
         "precision": precision,
         "recall": recall,
         "map50": map50,
