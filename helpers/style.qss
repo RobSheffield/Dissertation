@@ -1,0 +1,175 @@
+/* Contains styling for the application. Qt loads this information a runtime. */
+
+QMainWindow {
+    background-color: #1E1E1E;
+    color: #05f3ff;
+    font-size: 25px;
+}
+
+/* tab widget and tabs */
+QTabWidget::pane {
+    border: 1px solid #333333;
+    background: #252525;
+}
+QTabBar::tab {
+    background: #333333;
+    color: #05f3ff;
+    padding: 8px;
+    margin: 2px;
+    border-radius: 5px;
+}
+QTabBar::tab:selected {
+    background: #555555;
+    color: #05f3ff;
+}
+QTabBar::tab:hover {
+    background: #777777;
+    color: #05f3ff;
+}
+
+/* Config List Widget */
+QListWidget {
+    background-color: #252525;
+    border: 1px solid #333333;
+    color: #05f3ff;
+    font-size: 14px;
+    padding: 4px;
+}
+QListWidget::item {
+    background-color: #333333;
+    padding: 8px;
+    margin: 2px;
+    border-radius: 1px;
+}
+QListWidget::item:selected {
+    background-color: #555555;
+    color: #05f3ff;
+    border: none;
+    outline: none;
+}
+QListWidget::item:hover {
+    background-color: #777777;
+    color: #05f3ff;
+}
+QListWidget::item:focus {
+    outline: none;
+    border: none;
+}
+
+QLabel {
+    color: #05f3ff;
+}
+
+QPushButton {
+    background: #333333;
+    color: #05f3ff;
+    padding: 8px;
+    margin: 2px;
+    border-radius: 5px;
+}
+QPushButton::hover {
+    background: #777777;
+    color: #05f3ff;
+}
+
+QLineEdit {
+    background-color: #252525;
+    color: #05f3ff;
+    border: 1px solid #05f3ff;
+    padding: 6px;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+QLineEdit:focus {
+    border: 1px solid #05f3ff;
+    outline: none;
+}
+
+QComboBox {
+    background-color: #252525;
+    color: #05f3ff;
+    border: 1px solid #05f3ff;
+    padding: 6px;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+QComboBox:focus {
+    border: 1px solid #05f3ff;
+    outline: none;
+}
+
+QComboBox::drop-down {
+    background-color: #252525;
+    border: 1px solid #05f3ff;
+    width: 20px;
+}
+
+QComboBox::item {
+    background-color: #252525;
+    color: #05f3ff;
+    padding: 6px;
+}
+
+QComboBox::item:selected {
+    background-color: #05f3ff;
+    color: #252525;
+}
+
+QScrollArea QWidget {
+    background-color: #1E1E1E;  /* Dark background */
+    color: #05f3ff;  /* Neon cyan text */
+}
+
+/* Scroll Area */
+QScrollArea {
+    background: #1E1E1E;
+    border: 1px solid #333333;
+}
+
+/* Scroll Bar */
+QScrollBar:vertical {
+    border: #1E1E1E;
+    background: #05f3ff;
+    width: 12px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background: #05f3ff;
+    min-height: 20px;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #02d1cc;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    background: #05f3ff;
+    height: 0px;
+}
+QScrollBar:horizontal {
+    border: #1E1E1E;
+    background: #05f3ff;
+    width: 12px;
+    margin: 0px;
+}
+QScrollBar::handle:horizontal {
+    background: #05f3ff;
+    min-height: 20px;
+    border-radius: 6px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #02d1cc;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    background: #05f3ff;
+    height: 0px;
+}
+
+QMessageBox {
+    background-color: #FFFFFF;
+}
+
+QMessageBox QLabel {
+    color: #000000;
+}
