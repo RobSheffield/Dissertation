@@ -1,7 +1,7 @@
 # X-Ray_Image_Analysis
 
 This program has been created in collaboration with the University of Sheffield and AMRC Castings.
-It contributes to the dissertation project created by @TomPearson38
+It contributes to the dissertation project created by @TomPearson38 and later tested and modified by @RobSheffield
 
 The system has been coded in Python and allows the user to provide an image of an X-rayed alloy to be analysed. The system then
 detects faults in the provided image and provides feedback and a confidence score on the areas it believes contain faults. The user is
